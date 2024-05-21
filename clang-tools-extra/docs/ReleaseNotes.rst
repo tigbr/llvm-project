@@ -110,8 +110,20 @@ New checks
   Finds initializer lists for aggregate types that could be
   written as designated initializers instead.
 
+<<<<<<< HEAD
 - New :doc:`readability-use-std-min-max
   <clang-tidy/checks/readability/use-std-min-max>` check.
+=======
+- New :doc:`bugprone-count-branches
+  <clang-tidy/checks/bugprone-count-branches>` check.
+
+  FIXME: add release notes.
+
+- New :doc:`cppcoreguidelines-avoid-non-const-global-variables
+  <clang-tidy/checks/cppcoreguidelines-avoid-non-const-global-variables>` check.
+  Finds non-const global variables as described in check I.2 of C++ Core
+  Guidelines.
+>>>>>>> 49425d92f912 (Detect: if, for, while, do-while, switch)
 
   Replaces certain conditional statements with equivalent calls to
   ``std::min`` or ``std::max``.

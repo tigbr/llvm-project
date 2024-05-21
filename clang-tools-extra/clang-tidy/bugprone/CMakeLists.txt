@@ -15,6 +15,7 @@ add_clang_library(clangTidyBugproneModule
   ChainedComparisonCheck.cpp
   ComparePointerToMemberVirtualFunctionCheck.cpp
   CopyConstructorInitCheck.cpp
+  CountBranchesCheck.cpp
   DanglingHandleCheck.cpp
   DynamicStaticInitializersCheck.cpp
   EasilySwappableParametersCheck.cpp

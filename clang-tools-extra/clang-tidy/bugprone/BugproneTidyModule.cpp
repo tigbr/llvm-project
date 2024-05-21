@@ -20,6 +20,7 @@
 #include "ChainedComparisonCheck.h"
 #include "ComparePointerToMemberVirtualFunctionCheck.h"
 #include "CopyConstructorInitCheck.h"
+#include "CountBranchesCheck.h"
 #include "DanglingHandleCheck.h"
 #include "DynamicStaticInitializersCheck.h"
 #include "EasilySwappableParametersCheck.h"
@@ -115,6 +116,8 @@ public:
         "bugprone-compare-pointer-to-member-virtual-function");
     CheckFactories.registerCheck<CopyConstructorInitCheck>(
         "bugprone-copy-constructor-init");
+    CheckFactories.registerCheck<CountBranchesCheck>(
+        "bugprone-count-branches");
     CheckFactories.registerCheck<DanglingHandleCheck>(
         "bugprone-dangling-handle");
     CheckFactories.registerCheck<DynamicStaticInitializersCheck>(
