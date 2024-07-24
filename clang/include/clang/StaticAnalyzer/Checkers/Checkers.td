@@ -233,6 +233,10 @@ def DivZeroChecker : Checker<"DivideZero">,
   HelpText<"Check for division by zero">,
   Documentation<HasDocumentation>;
 
+def MainCallChecker : Checker<"MainCall">,
+  HelpText<"Check recursive calls to main">,
+  Documentation<NotDocumented>;
+
 def UndefResultChecker : Checker<"UndefinedBinaryOperatorResult">,
   HelpText<"Check for undefined results of binary operators">,
   Documentation<HasDocumentation>;
