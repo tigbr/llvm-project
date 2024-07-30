@@ -237,6 +237,10 @@ def MainCallChecker : Checker<"MainCall">,
   HelpText<"Check recursive calls to main">,
   Documentation<NotDocumented>;
 
+def TaggedUnionChecker : Checker<"TaggedUnionChecker">,
+  HelpText<"Check usage of tagged unions">,
+  Documentation<NotDocumented>;
+
 def UndefResultChecker : Checker<"UndefinedBinaryOperatorResult">,
   HelpText<"Check for undefined results of binary operators">,
   Documentation<HasDocumentation>;
