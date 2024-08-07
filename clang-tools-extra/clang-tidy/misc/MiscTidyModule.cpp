@@ -11,6 +11,7 @@
 #include "../ClangTidyModuleRegistry.h"
 #include "ConfusableIdentifierCheck.h"
 #include "ConstCorrectnessCheck.h"
+#include "ConvertMethodsToGlobalFunctionsCheck.h"
 #include "CoroutineHostileRAIICheck.h"
 #include "DefinitionsInHeadersCheck.h"
 #include "HeaderIncludeCycleCheck.h"
@@ -42,6 +43,8 @@ public:
         "misc-confusable-identifiers");
     CheckFactories.registerCheck<ConstCorrectnessCheck>(
         "misc-const-correctness");
+    CheckFactories.registerCheck<ConvertMethodsToGlobalFunctionsCheck>(
+        "misc-convert-methods-to-global-functions");
     CheckFactories.registerCheck<CoroutineHostileRAIICheck>(
         "misc-coroutine-hostile-raii");
     CheckFactories.registerCheck<DefinitionsInHeadersCheck>(
