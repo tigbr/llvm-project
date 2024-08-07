@@ -113,26 +113,22 @@ using namespace ento;
 
 namespace {
 
-class Callback : public MatcFinder::MatchCallback {
-	BugReporter 
-};
-
-class TaggedUnionChecker : public Checker<check::PreCall> {
+class TaggedUnionChecker : public Checker<check::BranchCondition> {
 
   const BugType BT{this, "Tagged union checker"};
 
 public:
-  void checkPreCall(const CallEvent &Call, CheckerContext &C) const;
+  void checkBranchCondition(const clang::Stmt *Statement, CheckerContext &C) const;
 };
 } // end anonymous namespace
 
-void TaggedUnionChecker::checkPreCall(const CallEvent &Call, CheckerContext &C) const {
-  if (const IdentifierInfo *II = Call.getCalleeIdentifier())
-    if (II->isStr("main")) {
-      ExplodedNode *N = C.generateErrorNode();
-      auto Report = std::make_unique<PathSensitiveBugReport>(BT, BT.getCategory(), N);
-      C.emitReport(std::move(Report));
-    }
+void TaggedUnionChecker::checkBranchCondition(const clang::Stmt *Statement, CheckerContext &C) const {
+  // if (const IdentifierInfo *II = Call.getCalleeIdentifier())
+  //   if (II->isStr("main")) {
+  //     ExplodedNode *N = C.generateErrorNode();
+  //     auto Report = std::make_unique<PathSensitiveBugReport>(BT, BT.getCategory(), N);
+  //     C.emitReport(std::move(Report));
+  //   }
 }
 
 void ento::registerTaggedUnionChecker(CheckerManager &Mgr) {
