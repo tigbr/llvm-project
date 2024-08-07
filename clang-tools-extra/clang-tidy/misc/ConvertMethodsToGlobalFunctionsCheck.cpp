@@ -8,25 +8,60 @@
 
 #include "ConvertMethodsToGlobalFunctionsCheck.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/Lex/Lexer.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace clang::ast_matchers;
 
 namespace clang::tidy::misc {
 
 void ConvertMethodsToGlobalFunctionsCheck::registerMatchers(MatchFinder *Finder) {
-  // FIXME: Add matchers.
-  Finder->addMatcher(functionDecl().bind("x"), this);
+  Finder->addMatcher(cxxMemberCallExpr(allOf(callee(cxxMethodDecl(anyOf(hasName("begin"), hasName("end"), hasName("size"), hasName("empty")))), unless(hasAncestor(cxxForRangeStmt())))).bind("root"), this);
+}
+
+bool ConvertMethodsToGlobalFunctionsCheck::isLanguageVersionSupported(const LangOptions &LangOpts) const {
+	return LangOpts.CPlusPlus11;
 }
 
 void ConvertMethodsToGlobalFunctionsCheck::check(const MatchFinder::MatchResult &Result) {
-  // FIXME: Add callback implementation.
-  const auto *MatchedDecl = Result.Nodes.getNodeAs<FunctionDecl>("x");
-  if (!MatchedDecl->getIdentifier() || MatchedDecl->getName().starts_with("awesome_"))
-    return;
-  diag(MatchedDecl->getLocation(), "function %0 is insufficiently awesome")
-      << MatchedDecl
-      << FixItHint::CreateInsertion(MatchedDecl->getLocation(), "awesome_");
-  diag(MatchedDecl->getLocation(), "insert 'awesome'", DiagnosticIDs::Note);
+
+  const auto *MemberCallExpr = Result.Nodes.getNodeAs<CXXMemberCallExpr>("root");
+  const auto *MethodDecl = llvm::dyn_cast_or_null<CXXMethodDecl>(MemberCallExpr->getDirectCallee());
+  const auto *ObjectDecl = MethodDecl->getParent();
+  assert(MemberCallExpr && MethodDecl && ObjectDecl && "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+
+  if (!ObjectDecl->isInStdNamespace()) return;
+
+  SourceLocation begin{MemberCallExpr->getBeginLoc()};
+  SourceLocation end{MemberCallExpr->getRParenLoc()};
+	if (begin.isInvalid() || end.isInvalid() || begin.isMacroID() || end.isMacroID()) return;
+
+  std::string fixit;
+
+  if (begin == MemberCallExpr->getExprLoc()) {
+    fixit = "std::" + std::string{MethodDecl->getName().data()} + "(this)";
+  } else {
+	SourceLocation currentLocation;
+  	clang::LangOptions lopt = getLangOpts(); 
+	SourceLocation tokenLocation = begin;
+    std::optional<Token> prevtoken;
+    std::optional<Token> token;
+	do {
+		currentLocation = tokenLocation;
+		prevtoken = token;
+		token = clang::Lexer::findNextToken(currentLocation, *Result.SourceManager, lopt);
+		tokenLocation = token->getLocation();
+	} while (tokenLocation != MemberCallExpr->getExprLoc());
+    CharSourceRange sourceRange{{begin, prevtoken->getLocation()}, true};
+	StringRef textUntilDot = clang::Lexer::getSourceText(sourceRange, *Result.SourceManager, lopt);
+    std::string tokenAsString = clang::Lexer::getSpelling(*prevtoken, *Result.SourceManager, lopt);
+	if (tokenAsString == "->*" || tokenAsString == ".*") return;
+    fixit = "std::" + std::string{MethodDecl->getName().data()} + std::string{"("} + (prevtoken->getLength() == 2 ? std::string{"*"} : std::string{""}) + std::string{textUntilDot.drop_back(prevtoken->getLength())} + std::string{")"};
+    
+  }
+
+    diag(MemberCallExpr->getRParenLoc(), "is not using the global version")
+    << FixItHint::CreateReplacement({MemberCallExpr->getBeginLoc(), MemberCallExpr->getRParenLoc()}, fixit);
 }
 
 } // namespace clang::tidy::misc
