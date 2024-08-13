@@ -16,7 +16,7 @@ using namespace clang::ast_matchers;
 namespace clang::tidy::misc {
 
 void ConvertMethodsToGlobalFunctionsCheck::registerMatchers(MatchFinder *Finder) {
-  Finder->addMatcher(cxxMemberCallExpr(allOf(callee(cxxMethodDecl(anyOf(hasName("begin"), hasName("end"), hasName("size"), hasName("empty")))), unless(hasAncestor(cxxForRangeStmt())))).bind("root"), this);
+  Finder->addMatcher(cxxMemberCallExpr(callee(cxxMethodDecl(hasAnyName("begin","end","size","empty","cbegin","cned","rbegin","rend","crbegin","crend")))).bind("root"), this);
 }
 
 bool ConvertMethodsToGlobalFunctionsCheck::isLanguageVersionSupported(const LangOptions &LangOpts) const {
@@ -38,11 +38,14 @@ void ConvertMethodsToGlobalFunctionsCheck::check(const MatchFinder::MatchResult 
 
   std::string fixit;
 
+  clang::LangOptions lopt = getLangOpts();
+
+  if (clang::Lexer::getSourceText({{begin,end},true}, *Result.SourceManager, lopt)==":") return;
+
   if (begin == MemberCallExpr->getExprLoc()) {
-    fixit = "std::" + std::string{MethodDecl->getName().data()} + "(this)";
+    fixit = "std::" + std::string{MethodDecl->getName().data()} + "(*this)";
   } else {
 	SourceLocation currentLocation;
-  	clang::LangOptions lopt = getLangOpts(); 
 	SourceLocation tokenLocation = begin;
     std::optional<Token> prevtoken;
     std::optional<Token> token;
