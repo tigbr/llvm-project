@@ -9,42 +9,61 @@
 #include "ConvertMethodsToGlobalFunctionsCheck.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Lex/Lexer.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace clang::ast_matchers;
 
 namespace clang::tidy::misc {
 
+
+auto makeHasFunNameDirect(llvm::StringRef name){
+  return cxxRecordDecl(hasMethod(cxxMethodDecl( hasName(name), isConst(),isPublic(),parameterCountIs(0))));
+}
+auto makeHasFunName(llvm::StringRef name){
+  return cxxRecordDecl(anyOf(makeHasFunNameDirect(name), hasAnyBase(hasType(makeHasFunNameDirect(name)))));
+}
+auto makeMacher(llvm::StringRef funName, llvm::StringRef chName){
+  return cxxMemberCallExpr(on( expr(hasType(makeHasFunName(chName)))),
+          callee(cxxMethodDecl(hasAnyName(funName),
+                               isConst(), parameterCountIs(0))));
+
+}
 void ConvertMethodsToGlobalFunctionsCheck::registerMatchers(
     MatchFinder *Finder) {
+  Finder->addMatcher(makeMacher("cbegin", "begin").bind("root"),this);
+  Finder->addMatcher(makeMacher("crbegin", "rbegin").bind("root"),this);
+  Finder->addMatcher(makeMacher("cend", "end").bind("root"),this);
+  Finder->addMatcher(makeMacher("crend", "rend").bind("root"),this);
   Finder->addMatcher(
       cxxMemberCallExpr(
-          callee(cxxMethodDecl(hasAnyName("cbegin", "cend", "crbegin", "crend"),
-                               isConst(), parameterCountIs(0))))
-          .bind("root"),
-      this);
-  Finder->addMatcher(
-      cxxMemberCallExpr(
-          callee(cxxMethodDecl(hasAnyName("begin", "end", "rbegin", "rend"),
+          callee(cxxMethodDecl(hasAnyName("begin", "end", "rbegin", "rend"), isPublic(),
                                parameterCountIs(0))))
           .bind("root"),
       this);
-  // Finder->addMatcher(cxxMemberCallExpr(callee(cxxMethodDecl(hasAnyName("swap"),parameterCountIs(1)))).bind("root"),
+  // Finder->addMatcher(cxxMemberCallExpr(callee(cxxMethodDecl(hasAnyName("swap"),parameterCountIs(1),isPublic()))).bind("root"),
   // this);
-  if (getLangOpts().CPlusPlus17)
+  if (getLangOpts().CPlusPlus17){
     Finder->addMatcher(
         cxxMemberCallExpr(callee(cxxMethodDecl(hasAnyName("size", "empty"),
-                                               isConst(), parameterCountIs(0))))
-            .bind("root"),
-        this);
+                                               isConst(), isPublic(), parameterCountIs(0))))
+            .bind("root"), this);
+    Finder->addMatcher(
+        cxxMemberCallExpr(callee(cxxMethodDecl(hasAnyName("data"),isPublic(), parameterCountIs(0))))
+            .bind("root"), this);
+  }
 }
 
 bool ConvertMethodsToGlobalFunctionsCheck::isLanguageVersionSupported(
     const LangOptions &LangOpts) const {
   return LangOpts.CPlusPlus11;
 }
-
+void ConvertMethodsToGlobalFunctionsCheck::registerPPCallbacks(
+        const SourceManager &SM, Preprocessor *PP, Preprocessor *ModuleExpanderPP){
+  inserter.registerPreprocessor(PP);
+}
 void ConvertMethodsToGlobalFunctionsCheck::check(
     const MatchFinder::MatchResult &Result) {
 
@@ -111,11 +130,12 @@ void ConvertMethodsToGlobalFunctionsCheck::check(
     }
     fixit += ")";
   }
-
-  diag(MemberCallExpr->getRParenLoc(), "is not using the global version")
+  auto Diagnostic = diag(MemberCallExpr->getRParenLoc(), "is not using the global version")
       << FixItHint::CreateReplacement(
              {MemberCallExpr->getBeginLoc(), MemberCallExpr->getRParenLoc()},
              fixit);
+  Diagnostic<<
+    inserter.createIncludeInsertion(Result.SourceManager->getFileID(begin), "<iterator>");
 }
 
 } // namespace clang::tidy::misc

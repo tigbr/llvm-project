@@ -20,6 +20,10 @@ namespace std {
     T* rend(){return nullptr;}
     const T* cend()const{return nullptr;}
     const T* crend()const{return nullptr;}
+    const T* begin()const{return nullptr;}
+    const T* rbegin()const{return nullptr;}
+    const T* end()const{return nullptr;}
+    const T* rend()const{return nullptr;}
     void swap(vector<T>&o){};
   };
   template <class T>
@@ -29,6 +33,9 @@ namespace std {
 struct NoStd {
 	int a;
 
+	void cbegin()const {
+
+	}
 	void begin() {
 
 	}
@@ -51,6 +58,7 @@ struct D:std::vector<int>{
 int main(void) {
 
 	NoStd asdf;
+	asdf.cbegin();
 	asdf.begin();
   // CHECK-MESSAGES: [[@LINE-1]]:13: warning: is not using the global version [misc-convert-methods-to-global-functions]
   // CHECK-FIXES: std::begin(asdf)
