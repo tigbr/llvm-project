@@ -41,16 +41,20 @@ Egymásban lévő tagged union-ok
 using namespace clang;
 using namespace ento;
 
+REGISTER_MAP_WITH_PROGRAMSTATE(tagged_union_tag_values, const MemRegion*, QualType)
+
 namespace {
 
 class TaggedUnionChecker : public Checker<check::ASTDecl<TranslationUnitDecl>, check::BranchCondition, check::Location> {
 
 	const BugType BT{this, "Inconsistent tagged union access!"};
-    mutable std::map<const RecordDecl*, std::map<const FieldDecl*, llvm::APSInt>> tagged_union_maps;
+    mutable std::map<const RecordDecl*, std::map<llvm::APSInt, const FieldDecl*>> tagged_union_invariants;
+
+	void checkEnumTagAccess(SVal Loc, bool IsLoad, const Stmt *S, CheckerContext &C) const;
 
 public:
 	void checkBranchCondition(const clang::Stmt *Statement, CheckerContext &C) const;
-	void checkLocation(SVal Loc, bool IsLoad, const Stmt *S, CheckerContext &) const;
+	void checkLocation(SVal Loc, bool IsLoad, const Stmt *S, CheckerContext &C) const;
 	void checkASTDecl(const TranslationUnitDecl *D, AnalysisManager &Mgr, BugReporter &BR) const;
 	void checkASTCodeBody(const Decl *D, AnalysisManager &AM, BugReporter &B) const;
 };
@@ -152,6 +156,46 @@ void MyMatchCallback::run(const clang::ast_matchers::MatchFinder::MatchResult &R
 
 }
 
+static bool isInCondition(const Stmt *S, CheckerContext &C) {
+  ParentMapContext &ParentCtx = C.getASTContext().getParentMapContext();
+  bool CondFound = false;
+  while (S && !CondFound) {
+    const DynTypedNodeList Parents = ParentCtx.getParents(*S);
+    if (Parents.empty())
+      break;
+    const auto *ParentS = Parents[0].get<Stmt>();
+    if (!ParentS || isa<CallExpr>(ParentS))
+      break;
+    switch (ParentS->getStmtClass()) {
+    case Expr::IfStmtClass:
+      CondFound = (S == cast<IfStmt>(ParentS)->getCond());
+      break;
+    case Expr::ForStmtClass:
+      CondFound = (S == cast<ForStmt>(ParentS)->getCond());
+      break;
+    case Expr::DoStmtClass:
+      CondFound = (S == cast<DoStmt>(ParentS)->getCond());
+      break;
+    case Expr::WhileStmtClass:
+      CondFound = (S == cast<WhileStmt>(ParentS)->getCond());
+      break;
+    case Expr::SwitchStmtClass:
+      CondFound = (S == cast<SwitchStmt>(ParentS)->getCond());
+      break;
+    case Expr::ConditionalOperatorClass:
+      CondFound = (S == cast<ConditionalOperator>(ParentS)->getCond());
+      break;
+    case Expr::BinaryConditionalOperatorClass:
+      CondFound = (S == cast<BinaryConditionalOperator>(ParentS)->getCommon());
+      break;
+    default:
+      break;
+    }
+    S = ParentS;
+  }
+  return CondFound;
+}
+
 void TaggedUnionChecker::checkBranchCondition(const clang::Stmt *Statement, CheckerContext &C) const {
 return;
 	GOTHEREM("checkBranchCondition kezdés");
@@ -198,11 +242,22 @@ struct
 
 #endif
 
+void TaggedUnionChecker::checkEnumTagAccess(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) const {
+	using namespace clang::ast_matchers;
+
+	auto *region = Loc.getAsRegion();
+	if (!region) return;
+
+	// Is this a data field
+	auto *field_region = region->getAs<FieldRegion>();
+	if (!field_region) return;
+
+}
+
 void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) const {
 	using namespace clang::ast_matchers;
 
-	// Statement->dump();
-	// llvm::errs() << '\n' << Statement->getStmtClassName() << '\n';
+	checkEnumTagAccess(Loc, IsLoad, Statement, C);
 
 	auto *region = Loc.getAsRegion();
 	if (!region) return;
@@ -242,7 +297,6 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 	Finder.matchAST(Mgr.getASTContext());
 
 	MemRegionManager &memregion_manager = region->getMemRegionManager();
-	StoreManager &store_manager = C.getStoreManager();
 	const ProgramStateRef &programstate = C.getState();
 
 	if (!CB.enum_field || !CB.union_field) return;
@@ -257,50 +311,28 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 		}
 	}
 
-	accessed_field_region_in_union->dump();
-	llvm::errs() << '\n';
-
 	QualType enum_type = enum_field_region->getValueType();
 	if (!enum_field_region) {
 		llvm::errs() << "dasfqwerb" << '\n';
 	}
 
-	// tvr->dump();
-	// llvm::errs() << '\n';
-
-	// loc::MemRegionVal enum_value_sval = sval_builder.makeLoc(enum_field_region);
-
-    // SValBuilder &sval_builder = C.getSValBuilder();
-	// loc::MemRegionVal tagged_union_sval = sval_builder.makeLoc(tvr);
-	// SVal enum_value_sval = store_manager.getLValueField(CB.enum_field, tagged_union_sval);
-
 	SVal enum_value_sval = programstate->getSVal(enum_field_region, enum_type);
-	// enum_value_sval.dump();
-	// llvm::errs() << '\n';
 
     const llvm::APSInt *tag_value_apsint = enum_value_sval.getAsInteger();
+	const FieldDecl *accessed_union_field = accessed_field_region_in_union->getDecl();
 
-	if (tag_value_apsint) llvm::errs() << "Value of enum: " << *tag_value_apsint << '\n';
-	// llvm::errs() << "Number of enum values: " << CB.enum_values.size() << '\n';
-	// llvm::errs() << "Number of union members: " << CB.field_decls.size() << '\n';
-
-	const FieldDecl *accessed_union_field = CB.union_field;
-
-	llvm::errs() << "Found tag value: " << (tag_value_apsint != nullptr) << '\n';
 	if (tag_value_apsint) {
-		llvm::errs() << "Found accessed union field: " << (accessed_union_field != nullptr) << '\n';
 		if (accessed_union_field) {
-			auto &map_for_current = tagged_union_maps[root];
-			auto expected_tag = map_for_current.find(accessed_union_field);
-			llvm::errs() << "Found expected tag: " << (expected_tag != map_for_current.end()) << '\n';
-			if (expected_tag != map_for_current.end()) {
-				if (!llvm::APSInt::isSameValue(*tag_value_apsint, expected_tag->second)) {
+			auto &map_for_current = tagged_union_invariants[root];
+			auto expected_field = map_for_current.find(*tag_value_apsint);
+			if (expected_field != map_for_current.end()) {
+				if (accessed_union_field != expected_field->second) {
 					ExplodedNode *N = C.generateErrorNode();
 					auto Report = std::make_unique<PathSensitiveBugReport>(BT, BT.getCategory(), N);
 					C.emitReport(std::move(Report));
 				}
 			} else {
-				map_for_current.emplace(accessed_union_field, *tag_value_apsint);
+				map_for_current.emplace(*tag_value_apsint, accessed_union_field);
 			}
 		}
 	}
