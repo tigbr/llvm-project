@@ -197,7 +197,7 @@ static bool isInCondition(const Stmt *S, CheckerContext &C) {
 }
 
 void TaggedUnionChecker::checkBranchCondition(const clang::Stmt *Statement, CheckerContext &C) const {
-return;
+	return;
 	GOTHEREM("checkBranchCondition kezdés");
 
 	const auto *BinaryOperator = llvm::dyn_cast_or_null<clang::BinaryOperator>(Statement);
@@ -242,6 +242,41 @@ struct
 
 #endif
 
+static void printParents(const Stmt *S, CheckerContext &C) {
+  ParentMapContext &ParentCtx = C.getASTContext().getParentMapContext();
+  while (S) {
+    const DynTypedNodeList Parents = ParentCtx.getParents(*S);
+    if (Parents.empty())
+      break;
+    const auto *ParentS = Parents[0].get<Stmt>();
+    if (!ParentS || isa<CallExpr>(ParentS))
+      break; 
+	ParentS->dump();
+	llvm::errs() << '\n';
+    S = ParentS;
+  }
+}
+
+static void ancestorsValami(const Stmt *S, CheckerContext &C) {
+  ParentMapContext &ParentCtx = C.getASTContext().getParentMapContext();
+  const Stmt *prev = nullptr;
+  while (S) {
+    const DynTypedNodeList Parents = ParentCtx.getParents(*S);
+    if (Parents.empty())
+      break;
+    const auto *ParentS = Parents[0].get<Stmt>();
+    if (!ParentS || isa<CallExpr>(ParentS))
+      break; 
+	switch (S->getStmtClass()) {
+		case Expr::BinaryOperatorClass: {
+			
+		} break;
+	}
+	prev = S;
+    S = ParentS;
+  }
+}
+
 void TaggedUnionChecker::checkEnumTagAccess(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) const {
 	using namespace clang::ast_matchers;
 
@@ -252,26 +287,8 @@ void TaggedUnionChecker::checkEnumTagAccess(SVal Loc, bool IsLoad, const Stmt *S
 	auto *field_region = region->getAs<FieldRegion>();
 	if (!field_region) return;
 
-}
-
-void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) const {
-	using namespace clang::ast_matchers;
-
-	checkEnumTagAccess(Loc, IsLoad, Statement, C);
-
-	auto *region = Loc.getAsRegion();
-	if (!region) return;
-
-	// Is this a data field
-	auto *field_region = region->getAs<FieldRegion>();
-	if (!field_region) return;
-
-	auto *super_field_region = field_region->getSuperRegion();
-	auto *super_sub_region = super_field_region->getAs<SubRegion>();
-	if (!super_sub_region) return;
-
-	auto *sssr = super_sub_region->getSuperRegion();
-	auto *tvr = sssr->getAs<TypedValueRegion>();
+	auto *super_fieldregion = field_region->getSuperRegion();
+	auto *tvr = super_fieldregion->getAs<TypedValueRegion>();
 	if (!tvr) return;
 
 	QualType qualtype_desugared = tvr->getDesugaredValueType(C.getASTContext());
@@ -280,6 +297,7 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 	if (!desugared_type->isRecordType()) return;
 
 	const RecordType *desugared_record_type = desugared_type->getAsStructureType();
+	if (!desugared_record_type) return; 
 	const RecordDecl *root = desugared_record_type->getDecl();
 
 	AnalysisManager &Mgr = C.getAnalysisManager();
@@ -295,31 +313,121 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 	        .bind("root"),
 	    &CB);	
 	Finder.matchAST(Mgr.getASTContext());
-
-	MemRegionManager &memregion_manager = region->getMemRegionManager();
-	const ProgramStateRef &programstate = C.getState();
-
 	if (!CB.enum_field || !CB.union_field) return;
 
-	const FieldRegion *accessed_field_region_in_union = nullptr;
+	MemRegionManager &memregion_manager = region->getMemRegionManager();
 	const FieldRegion *union_field_region = memregion_manager.getFieldRegion(CB.union_field, tvr);
 	const FieldRegion *enum_field_region = memregion_manager.getFieldRegion(CB.enum_field, tvr);
-	for (auto decl : CB.field_decls) {
-		const FieldRegion *decl_region = memregion_manager.getFieldRegion(decl, union_field_region);
-		if (region->isSubRegionOf(decl_region)) {
-			accessed_field_region_in_union = decl_region;
+
+	if (region->isSubRegionOf(enum_field_region)) {
+		llvm::errs() << "Tag accessed!\n";
+	}
+
+	return;
+
+	const Expr *e = llvm::dyn_cast_or_null<Expr>(Statement);
+	if (e) {
+		llvm::errs() << "is expr\n";
+		e = e->IgnoreImpCasts();
+		// printParents(e, C);
+	}
+
+	ParentMapContext &ParentCtx = C.getASTContext().getParentMapContext();
+    const DynTypedNodeList Parents = ParentCtx.getParents(*Statement);
+	if (!Parents.empty()) {
+		const auto *ParentExpression = Parents[0].get<Stmt>();
+		if (ParentExpression) {
+			llvm::errs() << ParentExpression->getStmtClassName() << '\n';
+		} else {
+			llvm::errs() << "Parent is not Stmt!\n";
 		}
+	} else {
+		llvm::errs() << "Parents empty!\n";
 	}
 
+#if 0
+	bool iic = isInCondition(Statement, C);
+	llvm::errs() << "checkLocation is in condition: " << iic << '\n';
+	llvm::errs() << Statement->getStmtClassName() << '\n';
+	if (iic) {
+		Statement->dump();
+	}
+
+	for (auto it = Statement->child_begin(); it != Statement->child_end(); it++) {
+		it->dump();
+	}
+#endif
+
+}
+
+enum access_type {
+	access_type_tag,
+	access_type_union_field
+};
+
+void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) const {
+	using namespace clang::ast_matchers;
+	checkEnumTagAccess(Loc, IsLoad, Statement, C);
+
+	auto *region = Loc.getAsRegion();
+	if (!region) return;
+
+	// Is this a data field
+	auto *field_region = region->getAs<FieldRegion>();
+	if (!field_region) return;
+
+	auto *super_fieldregion = field_region->getSuperRegion();
+	auto *super_subregion = super_fieldregion->getAs<SubRegion>();
+	if (!super_subregion) return;
+
+
+	auto *super_super_subregion = super_subregion->getSuperRegion();
+	if (!super_super_subregion) return;
+	auto *tvr = super_super_subregion->getAs<TypedValueRegion>();
+	if (!tvr) return;
+
+	QualType qualtype_desugared = tvr->getDesugaredValueType(C.getASTContext());
+	const Type *desugared_type = qualtype_desugared.getTypePtrOrNull();
+	if (!desugared_type) return;
+	if (!desugared_type->isRecordType()) return;
+
+	const RecordType *desugared_record_type = desugared_type->getAsStructureType();
+	if (!desugared_record_type) return;
+	const RecordDecl *root = desugared_record_type->getDecl();
+
+	AnalysisManager &Mgr = C.getAnalysisManager();
+	MatchFinder Finder;
+	MyMatchCallback CB(C.getBugReporter(), Mgr.getAnalysisDeclContext(root), this);
+	  Finder.addMatcher(
+	    recordDecl(
+	        anyOf(isStruct(), isClass()),
+	        has(fieldDecl(hasType(qualType(hasCanonicalType(recordType()))))
+	                .bind("union")),
+	        has(fieldDecl(hasType(qualType(hasCanonicalType(enumType()))))
+	                .bind("tags")))
+	        .bind("root"),
+	    &CB);	
+	Finder.matchAST(Mgr.getASTContext());
+	if (!CB.enum_field || !CB.union_field) return;
+
+	MemRegionManager &memregion_manager = region->getMemRegionManager();
+	const FieldRegion *union_field_region = memregion_manager.getFieldRegion(CB.union_field, tvr);
+	const FieldRegion *enum_field_region = memregion_manager.getFieldRegion(CB.enum_field, tvr);
+
+	const ProgramStateRef &programstate = C.getState();
 	QualType enum_type = enum_field_region->getValueType();
-	if (!enum_field_region) {
-		llvm::errs() << "dasfqwerb" << '\n';
-	}
-
 	SVal enum_value_sval = programstate->getSVal(enum_field_region, enum_type);
 
     const llvm::APSInt *tag_value_apsint = enum_value_sval.getAsInteger();
-	const FieldDecl *accessed_union_field = accessed_field_region_in_union->getDecl();
+	const FieldDecl *accessed_union_field = nullptr;
+	const FieldRegion *accessed_union_field_region = nullptr;
+	for (auto decl : CB.field_decls) {
+		const FieldRegion *decl_region = memregion_manager.getFieldRegion(decl, union_field_region);
+		if (region->isSubRegionOf(decl_region)) {
+			accessed_union_field = decl;
+			accessed_union_field_region = decl_region;
+		}
+	}
 
 	if (tag_value_apsint) {
 		if (accessed_union_field) {
@@ -329,6 +437,14 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 				if (accessed_union_field != expected_field->second) {
 					ExplodedNode *N = C.generateErrorNode();
 					auto Report = std::make_unique<PathSensitiveBugReport>(BT, BT.getCategory(), N);
+					const Expr *e = llvm::dyn_cast_or_null<Expr>(Statement);
+					if (e == nullptr) {
+						llvm::errs() << "nullnullnullnullnullnullnullnullnullnullnullnullnullnullnullnullnullnullnullnullnull\n";
+					} else {
+						llvm::errs() << "ptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptr\n";
+					}
+					// bugreporter::trackExpressionValue(N, e, *Report);
+					bugreporter::trackStoredValue(Loc, accessed_union_field_region, *Report);
 					C.emitReport(std::move(Report));
 				}
 			} else {
@@ -336,6 +452,7 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 			}
 		}
 	}
+
 }
 
 void TaggedUnionChecker::checkASTDecl(const TranslationUnitDecl *D, AnalysisManager &Mgr, BugReporter &BR) const {

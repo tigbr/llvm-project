@@ -18,11 +18,11 @@ struct bar {
 
 void foo(tag_values tag) {
     // expected-warning@+1 {{"Inconsistent tagged union access!"}}
-    switch (tag) {
-		case t1: break;
-		case t2: break;
-		case t3: break;
-	}
+    // switch (tag) {
+	// 	case t1: break;
+	// 	case t2: break;
+	// 	case t3: break;
+	// }
 }
 
 int main(int argc, char **argv) {
@@ -36,16 +36,23 @@ int main(int argc, char **argv) {
 	a.type = t1;
 	a.data.d1 = 1;
 
-	a.type = t2;
+	// a.type = t2;
 	a.data.d2 = 1;
 
-	a.data.d3 = 1;
+	// a.data.d3 = 1;
 
-	switch (a.type) {
-		case t1: a.data.d1 = 1; break;
-		case t2: a.data.d2 = 1; break;
-		case t3: a.data.d3 = 1; break;
-	}
+	// switch (a.type) {
+	// 	case t1: a.data.d1 = 1; break;
+	// 	case t2: a.data.d2 = 1; break;
+	// 	case t3: a.data.d3 = 1; break;
+	// }
+
+	// a.type = t1;
+	// a.type = t2;
+
+	// if (a.type == t1) {
+
+	// }
 
 	return 0;
 }
