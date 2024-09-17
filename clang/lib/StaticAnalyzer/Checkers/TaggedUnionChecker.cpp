@@ -28,6 +28,8 @@
  * hogy ilyenkor is a tag1 van érvényben? Ha egy unió adattaghoz több enum is 
  * tartozik, amire láttunk már példát, akkor így nem lehet következtetni.
  *
+ * NoteTag
+ *
  */
 
 #if 0
@@ -41,15 +43,26 @@ Egymásban lévő tagged union-ok
 using namespace clang;
 using namespace ento;
 
-REGISTER_MAP_WITH_PROGRAMSTATE(tagged_union_tag_values, const MemRegion*, QualType)
+#if 0
+REGISTER_MAP_WITH_PROGRAMSTATE(tagged_union_markers_tag,  const MemRegion*, llvm::APSInt)
+REGISTER_MAP_WITH_PROGRAMSTATE(tagged_union_markers_data, const MemRegion*, const FieldDecl*)
+#endif
 
 namespace {
+
+struct tagged_union_maps {
+	std::map<llvm::APSInt, const FieldDecl*> invariants;
+	std::map<const FieldDecl*, bool> field_usages;
+	std::map<llvm::APSInt, bool> tag_usages;
+};
 
 class TaggedUnionChecker : public Checker<check::ASTDecl<TranslationUnitDecl>, check::BranchCondition, check::Location> {
 
 	const BugType BT{this, "Inconsistent tagged union access!"};
     mutable std::map<const RecordDecl*, std::map<llvm::APSInt, const FieldDecl*>> tagged_union_invariants;
+	mutable std::map<const RecordDecl*, std::map<llvm::APSInt, const FieldDecl*>> tagged_union_field_usages;
 
+	// void checkEnumTagAssignment(SVal Loc, bool IsLoad, const Stmt *S, CheckerContext &C) const;
 	void checkEnumTagAccess(SVal Loc, bool IsLoad, const Stmt *S, CheckerContext &C) const;
 
 public:
@@ -242,6 +255,7 @@ struct
 
 #endif
 
+#if 0
 static void printParents(const Stmt *S, CheckerContext &C) {
   ParentMapContext &ParentCtx = C.getASTContext().getParentMapContext();
   while (S) {
@@ -276,9 +290,17 @@ static void ancestorsValami(const Stmt *S, CheckerContext &C) {
     S = ParentS;
   }
 }
+#endif
+
+// void TaggedUnionChecker::checkEnumTagAssignment(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) const {
+// 	
+// }
 
 void TaggedUnionChecker::checkEnumTagAccess(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) const {
 	using namespace clang::ast_matchers;
+
+	llvm::errs() << '\n';
+	// Statement->dump();
 
 	auto *region = Loc.getAsRegion();
 	if (!region) return;
@@ -311,7 +333,7 @@ void TaggedUnionChecker::checkEnumTagAccess(SVal Loc, bool IsLoad, const Stmt *S
 	        has(fieldDecl(hasType(qualType(hasCanonicalType(enumType()))))
 	                .bind("tags")))
 	        .bind("root"),
-	    &CB);	
+	    &CB);
 	Finder.matchAST(Mgr.getASTContext());
 	if (!CB.enum_field || !CB.union_field) return;
 
@@ -319,8 +341,25 @@ void TaggedUnionChecker::checkEnumTagAccess(SVal Loc, bool IsLoad, const Stmt *S
 	const FieldRegion *union_field_region = memregion_manager.getFieldRegion(CB.union_field, tvr);
 	const FieldRegion *enum_field_region = memregion_manager.getFieldRegion(CB.enum_field, tvr);
 
-	if (region->isSubRegionOf(enum_field_region)) {
-		llvm::errs() << "Tag accessed!\n";
+#if 0
+  const NoteTag *constructSetEofNoteTag(CheckerContext &C, SymbolRef StreamSym) const {
+    return C.getNoteTag([this, StreamSym](PathSensitiveBugReport &BR) {
+      if (!BR.isInteresting(StreamSym) || &BR.getBugType() != this->getBT_StreamEof())
+        return "";
+
+      BR.markNotInteresting(StreamSym);
+
+      return FeofNote;
+    });
+  }
+#endif
+
+	if (region->isSubRegionOf(enum_field_region) && !IsLoad) {
+		SymbolRef s = nullptr;
+		const NoteTag *first_access_of_field = C.getNoteTag([enum_field_region](PathSensitiveBugReport &BR) {
+			return BR.isInteresting(enum_field_region) ? "Tag set to a new value!" : "";
+		});
+		C.addTransition(C.getState(), first_access_of_field);
 	}
 
 	return;
@@ -380,7 +419,6 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 	auto *super_subregion = super_fieldregion->getAs<SubRegion>();
 	if (!super_subregion) return;
 
-
 	auto *super_super_subregion = super_subregion->getSuperRegion();
 	if (!super_super_subregion) return;
 	auto *tvr = super_super_subregion->getAs<TypedValueRegion>();
@@ -437,22 +475,20 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 				if (accessed_union_field != expected_field->second) {
 					ExplodedNode *N = C.generateErrorNode();
 					auto Report = std::make_unique<PathSensitiveBugReport>(BT, BT.getCategory(), N);
-					const Expr *e = llvm::dyn_cast_or_null<Expr>(Statement);
-					if (e == nullptr) {
-						llvm::errs() << "nullnullnullnullnullnullnullnullnullnullnullnullnullnullnullnullnullnullnullnullnull\n";
-					} else {
-						llvm::errs() << "ptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptrptr\n";
-					}
-					// bugreporter::trackExpressionValue(N, e, *Report);
+					Report->markInteresting(union_field_region);
+					Report->markInteresting(enum_field_region);
 					bugreporter::trackStoredValue(Loc, accessed_union_field_region, *Report);
 					C.emitReport(std::move(Report));
 				}
 			} else {
 				map_for_current.emplace(*tag_value_apsint, accessed_union_field);
+				const NoteTag *first_access_of_field = C.getNoteTag([enum_field_region](PathSensitiveBugReport &BR) {
+			return BR.isInteresting(enum_field_region) ? "First access of field!" : "";
+		});
+				C.addTransition(C.getState(), first_access_of_field);
 			}
 		}
 	}
-
 }
 
 void TaggedUnionChecker::checkASTDecl(const TranslationUnitDecl *D, AnalysisManager &Mgr, BugReporter &BR) const {
