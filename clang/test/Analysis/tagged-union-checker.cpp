@@ -26,6 +26,10 @@ void foo(tag_values tag) {
 }
 
 int main(int argc, char **argv) {
+	struct bar jo;
+	jo.type = t1;
+	jo.data.d1 = 55;
+
 	struct bar a;
 
 	// Ezt hogyan lenne jó kezelni?
