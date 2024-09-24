@@ -40,13 +40,95 @@ namespace {
 AST_MATCHER_P2(RecordDecl, fieldCountOfKindIsGT,
                ast_matchers::internal::Matcher<FieldDecl>, InnerMatcher,
                unsigned, N) {
-  unsigned MatchCount = 0;
+  return N < llvm::count_if(Node.fields(), [this, &Finder, &Builder] (auto *Field) { return InnerMatcher.matches(*Field, Finder, Builder); });
+}
+
+AST_MATCHER(RecordDecl, hasOneUnionField2134) {
+
+  auto UnionField = fieldDecl(hasType(qualType(
+      hasCanonicalType(recordType(hasDeclaration(recordDecl(isUnion())))))));
+
+  FieldDecl *FirstMatch = nullptr;
   for (const auto Field : Node.fields()) {
-    if (InnerMatcher.matches(*Field, Finder, Builder)) {
-      MatchCount += 1;
+    if (UnionField.matches(*Field, Finder, Builder)) {
+		if (FirstMatch) {
+			return false;
+		} else {
+			FirstMatch = Field;
+		}
     }
   }
-  return MatchCount > N;
+  if (FirstMatch != nullptr) {
+    llvm::errs() << "Save: " << UnionMatchBindName << '\n';
+    Builder->setBinding(UnionMatchBindName, clang::DynTypedNode::create(*FirstMatch));
+  }
+  return FirstMatch != nullptr;
+}
+
+AST_MATCHER(RecordDecl, hasOneEnumField2134) {
+
+  auto EnumField = fieldDecl(hasType(
+      qualType(hasCanonicalType(enumType(hasDeclaration(enumDecl()))))));
+
+  FieldDecl *FirstMatch = nullptr;
+  for (const auto Field : Node.fields()) {
+    if (EnumField.matches(*Field, Finder, Builder)) {
+		if (FirstMatch) {
+			return false;
+		} else {
+			FirstMatch = Field;
+		}
+    }
+  }
+  if (FirstMatch != nullptr) {
+    llvm::errs() << "Save: " << TagMatchBindName << '\n';
+    Builder->setBinding(TagMatchBindName, clang::DynTypedNode::create(*FirstMatch));
+  }
+  return FirstMatch != nullptr;
+}
+
+AST_MATCHER_P2(RecordDecl, hasOneUnion,
+               ast_matchers::internal::Matcher<FieldDecl>, InnerMatcher,
+			   StringRef, BindName) {
+  llvm::errs() << "Begin: " << BindName << '\n';
+  FieldDecl *FirstMatch = nullptr;
+  for (const auto Field : Node.fields()) {
+    if (InnerMatcher.matches(*Field, Finder, Builder)) {
+		if (FirstMatch) {
+			return false;
+		} else {
+			FirstMatch = Field;
+		}
+    }
+  }
+  if (FirstMatch != nullptr) {
+    // llvm::errs() << "Save: " << BindName << '\n';
+    Builder->setBinding(BindName, clang::DynTypedNode::create(*FirstMatch));
+  }
+  return FirstMatch != nullptr;
+}
+
+AST_MATCHER_P2(RecordDecl, fieldCountOfKindIsOne,
+               ast_matchers::internal::Matcher<FieldDecl>, InnerMatcher,
+               StringRef, BindName) {
+  llvm::errs() << "Begin: " << BindName << '\n';
+  FieldDecl *FirstMatch = nullptr;
+  for (const auto Field : Node.fields()) {
+	clang::ast_matchers::internal::BoundNodesTreeBuilder Builder2(*Builder);
+    if (InnerMatcher.matches(*Field, Finder, &Builder2)) {
+		// *Builder = std::move(Builder2);
+		if (FirstMatch) {
+			return false;
+		} else {
+			FirstMatch = Field;
+		}
+    }
+  }
+  if (FirstMatch != nullptr) {
+    llvm::errs() << "Save: " << BindName << '\n';
+    Builder->setBinding(BindName, clang::DynTypedNode::create(*FirstMatch));
+  }
+  return FirstMatch != nullptr;
 }
 
 } // namespace
@@ -90,20 +172,23 @@ void TaggedUnionMemberCountCheck::storeOptions(
 
 void TaggedUnionMemberCountCheck::registerMatchers(MatchFinder *Finder) {
 
-  static const auto UnionField = fieldDecl(hasType(qualType(
+  auto UnionField = fieldDecl(hasType(qualType(
       hasCanonicalType(recordType(hasDeclaration(recordDecl(isUnion())))))));
 
-  static const auto EnumField = fieldDecl(hasType(
+  auto EnumField = fieldDecl(hasType(
       qualType(hasCanonicalType(enumType(hasDeclaration(enumDecl()))))));
 
-  static const auto hasMultipleUnionsOrEnums = anyOf(
-      fieldCountOfKindIsGT(UnionField, 1), fieldCountOfKindIsGT(EnumField, 1));
+  // auto hasMultipleUnionsOrEnums = anyOf(
+  //     fieldCountOfKindIsGT(UnionField, 1), fieldCountOfKindIsGT(EnumField, 1));
+
+  auto hasOneUnionField = fieldCountOfKindIsOne(UnionField, UnionMatchBindName);
+  auto hasOneEnumField  = fieldCountOfKindIsOne(EnumField, TagMatchBindName);
 
   Finder->addMatcher(
       recordDecl(anyOf(isStruct(), isClass()),
-                 unless(anyOf(isImplicit(), hasMultipleUnionsOrEnums)),
-                 has(UnionField.bind(UnionMatchBindName)),
-                 has(EnumField.bind(TagMatchBindName)))
+                 hasOneUnionField,
+                 hasOneEnumField,
+                 unless(isImplicit()))
           .bind(RootMatchBindName),
       this);
 }
@@ -125,7 +210,7 @@ TaggedUnionMemberCountCheck::getNumberOfEnumValues(const EnumDecl *ED) {
   llvm::SmallSet<llvm::APSInt, 16> EnumValues;
 
   const EnumConstantDecl *LastEnumConstant = nullptr;
-  for (const auto Enumerator : ED->enumerators()) {
+  for (const EnumConstantDecl *Enumerator : ED->enumerators()) {
     EnumValues.insert(Enumerator->getInitVal());
     LastEnumConstant = Enumerator;
   }
@@ -145,6 +230,10 @@ void TaggedUnionMemberCountCheck::check(
   const auto *UnionField =
       Result.Nodes.getNodeAs<FieldDecl>(UnionMatchBindName);
   const auto *TagField = Result.Nodes.getNodeAs<FieldDecl>(TagMatchBindName);
+
+  for (const auto &KeyValue : Result.Nodes.getMap()) {
+      llvm::errs() << KeyValue.first << '\n';
+  }
 
   assert(Root && "Root is missing!");
   assert(UnionField && "UnionField is missing!");
