@@ -104,6 +104,11 @@ Improvements to clang-tidy
 New checks
 ^^^^^^^^^^
 
+- New :doc:`bugprone-enum-array-lookup
+  <clang-tidy/checks/bugprone/enum-array-lookup>` check.
+
+  FIXME: add release notes.
+
 - New :doc:`modernize-use-designated-initializers
   <clang-tidy/checks/modernize/use-designated-initializers>` check.
 

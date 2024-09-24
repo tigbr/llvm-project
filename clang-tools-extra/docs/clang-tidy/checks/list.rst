@@ -90,6 +90,7 @@ Clang-Tidy Checks
    :doc:`bugprone-dynamic-static-initializers <bugprone/dynamic-static-initializers>`,
    :doc:`bugprone-easily-swappable-parameters <bugprone/easily-swappable-parameters>`,
    :doc:`bugprone-empty-catch <bugprone/empty-catch>`,
+   :doc:`bugprone-enum-array-lookup <bugprone/enum-array-lookup>`, "Yes"
    :doc:`bugprone-exception-escape <bugprone/exception-escape>`,
    :doc:`bugprone-fold-init-type <bugprone/fold-init-type>`,
    :doc:`bugprone-forward-declaration-namespace <bugprone/forward-declaration-namespace>`,
