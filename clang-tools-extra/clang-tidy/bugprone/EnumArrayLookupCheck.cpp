@@ -14,8 +14,7 @@ using namespace clang::ast_matchers;
 namespace clang::tidy::bugprone {
 
 void EnumArrayLookupCheck::registerMatchers(MatchFinder *Finder) {
-  // FIXME: Add matchers.
-  Finder->addMatcher(functionDecl().bind("x"), this);
+  Finder->addMatcher(arraySubscriptExpr(hasBase(hasType(qualType()))), this);
 }
 
 void EnumArrayLookupCheck::check(const MatchFinder::MatchResult &Result) {
