@@ -11,6 +11,7 @@
 #include "../ClangTidyModuleRegistry.h"
 #include "../cppcoreguidelines/NarrowingConversionsCheck.h"
 #include "ArgumentCommentCheck.h"
+#include "ArrayLookupWithEnumCheck.h"
 #include "AssertSideEffectCheck.h"
 #include "AssignmentInIfConditionCheck.h"
 #include "BadSignalToKillThreadCheck.h"
@@ -98,6 +99,8 @@ public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
     CheckFactories.registerCheck<ArgumentCommentCheck>(
         "bugprone-argument-comment");
+    CheckFactories.registerCheck<ArrayLookupWithEnumCheck>(
+        "bugprone-array-lookup-with-enum");
     CheckFactories.registerCheck<AssertSideEffectCheck>(
         "bugprone-assert-side-effect");
     CheckFactories.registerCheck<AssignmentInIfConditionCheck>(

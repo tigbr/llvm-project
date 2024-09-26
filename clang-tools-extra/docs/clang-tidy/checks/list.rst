@@ -77,6 +77,7 @@ Clang-Tidy Checks
    :doc:`android-comparison-in-temp-failure-retry <android/comparison-in-temp-failure-retry>`,
    :doc:`boost-use-to-string <boost/use-to-string>`, "Yes"
    :doc:`bugprone-argument-comment <bugprone/argument-comment>`, "Yes"
+   :doc:`bugprone-array-lookup-with-enum <bugprone/array-lookup-with-enum>`, "Yes"
    :doc:`bugprone-assert-side-effect <bugprone/assert-side-effect>`,
    :doc:`bugprone-assignment-in-if-condition <bugprone/assignment-in-if-condition>`,
    :doc:`bugprone-bad-signal-to-kill-thread <bugprone/bad-signal-to-kill-thread>`,
