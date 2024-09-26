@@ -47,8 +47,8 @@ AST_MATCHER_P2(RecordDecl, fieldCountOfKindIsOne,
   // For precedence, see commit: 5b07de1a5faf4a22ae6fd982b877c5e7e3a76559
   clang::ast_matchers::internal::BoundNodesTreeBuilder TempBuilder;
 
-  FieldDecl *FirstMatch = nullptr;
-  for (const auto Field : Node.fields()) {
+  const FieldDecl *FirstMatch = nullptr;
+  for (const FieldDecl *Field : Node.fields()) {
     if (InnerMatcher.matches(*Field, Finder, &TempBuilder)) {
       if (FirstMatch) {
         return false;
