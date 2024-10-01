@@ -18,14 +18,25 @@ static const StringRef SubscriptIndexBindName = "index";
 static const StringRef SubscriptExprBindName = "expr";
 
 void ArrayLookupWithEnumCheck::registerMatchers(MatchFinder *Finder) {
-  Finder->addMatcher(arraySubscriptExpr(allOf(hasBase(implicitCastExpr(hasSourceExpression(declRefExpr(hasType(arrayType())).bind(SubscriptBaseBindName)))), hasIndex(declRefExpr(hasDeclaration(enumConstantDecl())).bind(SubscriptIndexBindName)))).bind(SubscriptExprBindName), this);
+  Finder->addMatcher(
+	arraySubscriptExpr(
+		allOf(
+			hasBase(
+				implicitCastExpr(hasSourceExpression(declRefExpr(hasType(arrayType())).bind(SubscriptBaseBindName)))
+			),
+			hasIndex(
+				ignoringImpCasts(declRefExpr(anyOf(hasDeclaration(enumConstantDecl()), hasType(qualType(hasCanonicalType(enumType(hasDeclaration(enumDecl()))))))).bind(SubscriptIndexBindName))
+			)
+		)
+	).bind(SubscriptExprBindName),
+  this);
 }
 
 void ArrayLookupWithEnumCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Base  = Result.Nodes.getNodeAs<DeclRefExpr>(SubscriptBaseBindName);
   const auto *Index = Result.Nodes.getNodeAs<DeclRefExpr>(SubscriptIndexBindName);
   const auto *SubscriptExpr = Result.Nodes.getNodeAs<ArraySubscriptExpr>(SubscriptExprBindName);
-  diag(SubscriptExpr->getBeginLoc(), "Array lookup by enum constant!");
+  diag(SubscriptExpr->getBeginLoc(), "Array lookup with an enum!");
 }
 
 } // namespace clang::tidy::bugprone
