@@ -53,7 +53,21 @@ bool ExplodedGraph::isInterestingLValueExpr(const Expr *Ex) {
   return isa<DeclRefExpr, MemberExpr, ObjCIvarRefExpr, ArraySubscriptExpr>(Ex);
 }
 
+static long count_PreStmtPurgeDeadSymbols = 0;
+static long count_PostCondition = 0;
+static long count_PostLValue = 0;
+static long count_PostLoad = 0;
+
+void print_collect_counts() {
+	llvm::outs() << "count_PreStmtPurgeDeadSymbols" << ' ' << count_PreStmtPurgeDeadSymbols << '\n';
+	llvm::outs() << "count_PostCondition" << ' ' << count_PostCondition << '\n';
+	llvm::outs() << "count_PostLValue" << ' ' << count_PostLValue << '\n';
+	llvm::outs() << "count_PostLoad" << ' ' << count_PostLoad << '\n';
+	llvm::outs() << '\n';
+}
+
 bool ExplodedGraph::shouldCollect(const ExplodedNode *node) {
+
   // First, we only consider nodes for reclamation of the following
   // conditions apply:
   //
@@ -100,7 +114,11 @@ bool ExplodedGraph::shouldCollect(const ExplodedNode *node) {
   // analysis history and are not consulted by any client code.
   ProgramPoint progPoint = node->getLocation();
   if (progPoint.getAs<PreStmtPurgeDeadSymbols>())
-    return !progPoint.getTag();
+	if (!progPoint.getTag()) {
+		count_PreStmtPurgeDeadSymbols += 1;
+		print_collect_counts();
+    	return true;
+	} 
 
   // Condition 3.
   if (!progPoint.getAs<PostStmt>() || progPoint.getAs<PostStore>())
@@ -146,6 +164,16 @@ bool ExplodedGraph::shouldCollect(const ExplodedNode *node) {
   // Condition 10, continuation.
   if (SuccLoc.getAs<CallEnter>() || SuccLoc.getAs<PreImplicitCall>())
     return false;
+
+  if (progPoint.getAs<PostCondition>()) {
+	count_PostCondition += 1;
+  } else if (progPoint.getAs<PostLValue>()) {
+	count_PostLValue += 1;
+  } else if (progPoint.getAs<PostLoad>()) {
+	count_PostLoad += 1;
+  }
+
+  print_collect_counts();
 
   return true;
 }
