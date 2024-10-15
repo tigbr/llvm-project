@@ -53,17 +53,33 @@ bool ExplodedGraph::isInterestingLValueExpr(const Expr *Ex) {
   return isa<DeclRefExpr, MemberExpr, ObjCIvarRefExpr, ArraySubscriptExpr>(Ex);
 }
 
+#include <string.h>
+
+struct name_and_count {
+	clang::Stmt::StmtClass stmtclass;
+	char *name;
+	long count;
+};
+
+std::vector<name_and_count> counts;
+
 static long count_PreStmtPurgeDeadSymbols = 0;
 static long count_PostCondition = 0;
 static long count_PostLValue = 0;
 static long count_PostLoad = 0;
 
 void print_collect_counts() {
-	llvm::outs() << "count_PreStmtPurgeDeadSymbols" << ' ' << count_PreStmtPurgeDeadSymbols << '\n';
-	llvm::outs() << "count_PostCondition" << ' ' << count_PostCondition << '\n';
-	llvm::outs() << "count_PostLValue" << ' ' << count_PostLValue << '\n';
-	llvm::outs() << "count_PostLoad" << ' ' << count_PostLoad << '\n';
-	llvm::outs() << '\n';
+	// llvm::outs() << "count_PreStmtPurgeDeadSymbols" << ' ' << count_PreStmtPurgeDeadSymbols << '\n';
+	// llvm::outs() << "count_PostCondition" << ' ' << count_PostCondition << '\n';
+	// llvm::outs() << "count_PostLValue" << ' ' << count_PostLValue << '\n';
+	// llvm::outs() << "count_PostLoad" << ' ' << count_PostLoad << '\n';
+	// llvm::outs() << '\n';
+	long total = 0;
+	for (const auto &it : counts) {
+		llvm::outs() << it.name << ' ' << '-' << ' ' << it.count << '\n';
+		total += it.count;
+	}
+	llvm::outs() << "Total: " << total << '\n' << '\n';
 }
 
 bool ExplodedGraph::shouldCollect(const ExplodedNode *node) {
@@ -165,13 +181,25 @@ bool ExplodedGraph::shouldCollect(const ExplodedNode *node) {
   if (SuccLoc.getAs<CallEnter>() || SuccLoc.getAs<PreImplicitCall>())
     return false;
 
-  if (progPoint.getAs<PostCondition>()) {
-	count_PostCondition += 1;
-  } else if (progPoint.getAs<PostLValue>()) {
-	count_PostLValue += 1;
-  } else if (progPoint.getAs<PostLoad>()) {
-	count_PostLoad += 1;
+  bool found = false;
+  for (auto &it : counts) {
+	if (it.stmtclass == Ex->getStmtClass()) {
+		found = true;
+		it.count += 1;
+		break;
+	}
   }
+  if (!found) {
+	counts.push_back(name_and_count{Ex->getStmtClass(), strdup(Ex->getStmtClassName()), 1l});
+  } 
+
+  // if (progPoint.getAs<PostCondition>()) {
+  //   count_PostCondition += 1;
+  // } else if (progPoint.getAs<PostLValue>()) {
+  //   count_PostLValue += 1;
+  // } else if (progPoint.getAs<PostLoad>()) {
+  //   count_PostLoad += 1;
+  // }
 
   print_collect_counts();
 
