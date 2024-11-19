@@ -301,6 +301,9 @@ using InterExplodedGraphMap =
     llvm::DenseMap<const ExplodedNode *, const ExplodedNode *>;
 
 class ExplodedGraph {
+public:
+  ASTContext *astcontext;
+
 protected:
   friend class CoreEngine;
 
@@ -343,6 +346,7 @@ protected:
 
 public:
   ExplodedGraph();
+  // ExplodedGraph(ExplodedGraph&, ASTContext*);
   ~ExplodedGraph();
 
   /// Retrieve the node associated with a (Location,State) pair,

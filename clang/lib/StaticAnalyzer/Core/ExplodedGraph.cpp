@@ -41,6 +41,8 @@ using namespace ento;
 
 ExplodedGraph::ExplodedGraph() = default;
 
+// ExplodedGraph::ExplodedGraph(ExplodedGraph &G, ASTContext *context) : ExplodedGraph(G), astcontext{context} { }
+
 ExplodedGraph::~ExplodedGraph() = default;
 
 //===----------------------------------------------------------------------===//
@@ -181,28 +183,13 @@ bool ExplodedGraph::shouldCollect(const ExplodedNode *node) {
   if (SuccLoc.getAs<CallEnter>() || SuccLoc.getAs<PreImplicitCall>())
     return false;
 
-  bool found = false;
-  for (auto &it : counts) {
-	if (it.stmtclass == Ex->getStmtClass()) {
-		found = true;
-		it.count += 1;
-		break;
-	}
+  SourceLocation loc = Ex->getSourceRange().getBegin();
+  SourceManager& sourcemanager = astcontext->getSourceManager();
+  if (loc.isValid()) {
+    llvm::outs() << Ex->getStmtClassName() << ' ' << sourcemanager.getSpellingLineNumber(loc) << ' ' << sourcemanager.getSpellingColumnNumber(loc) << '\n';
+  } else {
+    llvm::outs() << Ex->getStmtClassName() << ' ' << -1 << ' ' << -1 << '\n';
   }
-  if (!found) {
-	counts.push_back(name_and_count{Ex->getStmtClass(), strdup(Ex->getStmtClassName()), 1l});
-  } 
-
-  // if (progPoint.getAs<PostCondition>()) {
-  //   count_PostCondition += 1;
-  // } else if (progPoint.getAs<PostLValue>()) {
-  //   count_PostLValue += 1;
-  // } else if (progPoint.getAs<PostLoad>()) {
-  //   count_PostLoad += 1;
-  // }
-
-  print_collect_counts();
-
   return true;
 }
 
