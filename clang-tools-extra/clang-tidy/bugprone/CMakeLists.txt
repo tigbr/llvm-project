@@ -85,6 +85,7 @@ add_clang_library(clangTidyBugproneModule
   UnusedReturnValueCheck.cpp
   UseAfterMoveCheck.cpp
   VirtualNearMissCheck.cpp
+  YodaConditionCheck.cpp
 
   LINK_LIBS
   clangTidy

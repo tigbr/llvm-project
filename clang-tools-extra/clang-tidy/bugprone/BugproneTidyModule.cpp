@@ -89,6 +89,7 @@
 #include "UnusedReturnValueCheck.h"
 #include "UseAfterMoveCheck.h"
 #include "VirtualNearMissCheck.h"
+#include "YodaConditionCheck.h"
 
 namespace clang::tidy {
 namespace bugprone {
@@ -247,6 +248,8 @@ public:
     CheckFactories.registerCheck<UseAfterMoveCheck>("bugprone-use-after-move");
     CheckFactories.registerCheck<VirtualNearMissCheck>(
         "bugprone-virtual-near-miss");
+    CheckFactories.registerCheck<YodaConditionCheck>(
+        "bugprone-yoda-condition");
   }
 };
 

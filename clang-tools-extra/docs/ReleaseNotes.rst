@@ -104,6 +104,11 @@ Improvements to clang-tidy
 New checks
 ^^^^^^^^^^
 
+- New :doc:`bugprone-yoda-condition
+  <clang-tidy/checks/bugprone/yoda-condition>` check.
+
+  FIXME: add release notes.
+
 - New :doc:`modernize-use-designated-initializers
   <clang-tidy/checks/modernize/use-designated-initializers>` check.
 
