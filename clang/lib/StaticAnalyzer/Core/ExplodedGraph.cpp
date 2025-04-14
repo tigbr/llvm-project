@@ -39,11 +39,23 @@ using namespace ento;
 // Cleanup.
 //===----------------------------------------------------------------------===//
 
+#if 0
 ExplodedGraph::ExplodedGraph() = default;
 
 // ExplodedGraph::ExplodedGraph(ExplodedGraph &G, ASTContext *context) : ExplodedGraph(G), astcontext{context} { }
 
 ExplodedGraph::~ExplodedGraph() = default;
+#endif
+
+ExplodedGraph::ExplodedGraph() {
+	// llvm::outs() << "Exploded graph size:     " << Nodes.size()     << "\n";
+	// llvm::outs() << "Exploded graph capacity: " << Nodes.capacity() << "\n";
+}
+
+ExplodedGraph::~ExplodedGraph() {
+	// llvm::outs() << "Exploded graph size:     " << Nodes.size()     << "\n";
+	// llvm::outs() << "Exploded graph capacity: " << Nodes.capacity() << "\n";
+}
 
 //===----------------------------------------------------------------------===//
 // Node reclamation.

@@ -375,15 +375,21 @@ void AnalysisConsumer::HandleTopLevelDeclInObjCContainer(DeclGroupRef DG) {
 }
 
 void AnalysisConsumer::storeTopLevelDecls(DeclGroupRef DG) {
+  static int total_count = 0;
+  int count = 0;
   for (auto &I : DG) {
 
     // Skip ObjCMethodDecl, wait for the objc container to avoid
     // analyzing twice.
     if (isa<ObjCMethodDecl>(I))
       continue;
-
+    count += 1;
+    // llvm::outs() << I->getDeclKindName() << "\n";
     LocalTUDecls.push_back(I);
   }
+  total_count += count;
+  // llvm::outs() << "count"         << count       << "\n";
+  // llvm::outs() << "total_count: " << total_count << "\n\n";
 }
 
 static bool shouldSkipFunction(const Decl *D,
@@ -548,6 +554,7 @@ void AnalysisConsumer::runAnalysisOnTranslationUnit(ASTContext &C) {
   // entries.  Thus we don't use an iterator, but rely on LocalTUDecls
   // random access.  By doing so, we automatically compensate for iterators
   // possibly being invalidated, although this is a bit slower.
+  llvm::outs() << "LocalTUDecls.size()" << LocalTUDecls.size() << "\n";
   const unsigned LocalTUDeclsSize = LocalTUDecls.size();
   for (unsigned i = 0 ; i < LocalTUDeclsSize ; ++i) {
     TraverseDecl(LocalTUDecls[i]);

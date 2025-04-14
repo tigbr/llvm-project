@@ -40,7 +40,8 @@ static SVal conjureOffsetSymbolOnLocation(
 void ExprEngine::VisitBinaryOperator(const BinaryOperator* B,
                                      ExplodedNode *Pred,
                                      ExplodedNodeSet &Dst) {
-
+  VisitBinaryOperator_count += 1;
+  // print_callcounts();
   Expr *LHS = B->getLHS()->IgnoreParens();
   Expr *RHS = B->getRHS()->IgnoreParens();
 
@@ -192,7 +193,8 @@ void ExprEngine::VisitBinaryOperator(const BinaryOperator* B,
 
 void ExprEngine::VisitBlockExpr(const BlockExpr *BE, ExplodedNode *Pred,
                                 ExplodedNodeSet &Dst) {
-
+  VisitBlockExpr_count += 1;
+  // print_callcounts();
   CanQualType T = getContext().getCanonicalType(BE->getType());
 
   const BlockDecl *BD = BE->getBlockDecl();
@@ -281,7 +283,8 @@ ProgramStateRef ExprEngine::handleLValueBitCast(
 
 void ExprEngine::VisitCast(const CastExpr *CastE, const Expr *Ex,
                            ExplodedNode *Pred, ExplodedNodeSet &Dst) {
-
+  VisitCast_count += 1;
+  // print_callcounts();
   ExplodedNodeSet dstPreStmt;
   getCheckerManager().runCheckersForPreStmt(dstPreStmt, Pred, CastE, *this);
 
@@ -539,6 +542,8 @@ void ExprEngine::VisitCast(const CastExpr *CastE, const Expr *Ex,
 void ExprEngine::VisitCompoundLiteralExpr(const CompoundLiteralExpr *CL,
                                           ExplodedNode *Pred,
                                           ExplodedNodeSet &Dst) {
+  VisitCompoundLiteralExpr_count += 1;
+  // print_callcounts();
   StmtNodeBuilder B(Pred, Dst, *currBldrCtx);
 
   ProgramStateRef State = Pred->getState();
@@ -563,6 +568,8 @@ void ExprEngine::VisitCompoundLiteralExpr(const CompoundLiteralExpr *CL,
 
 void ExprEngine::VisitDeclStmt(const DeclStmt *DS, ExplodedNode *Pred,
                                ExplodedNodeSet &Dst) {
+  VisitDeclStmt_count += 1;
+  // print_callcounts();
   if (isa<TypedefNameDecl>(*DS->decl_begin())) {
     // C99 6.7.7 "Any array size expressions associated with variable length
     // array declarators are evaluated each time the declaration of the typedef
@@ -639,6 +646,8 @@ void ExprEngine::VisitDeclStmt(const DeclStmt *DS, ExplodedNode *Pred,
 
 void ExprEngine::VisitLogicalExpr(const BinaryOperator* B, ExplodedNode *Pred,
                                   ExplodedNodeSet &Dst) {
+  VisitLogicalExpr_count += 1;
+  // print_callcounts();
   // This method acts upon CFG elements for logical operators && and ||
   // and attaches the value (true or false) to them as expressions.
   // It doesn't produce any state splits.
@@ -734,6 +743,8 @@ void ExprEngine::VisitLogicalExpr(const BinaryOperator* B, ExplodedNode *Pred,
 void ExprEngine::VisitInitListExpr(const InitListExpr *IE,
                                    ExplodedNode *Pred,
                                    ExplodedNodeSet &Dst) {
+  VisitInitListExpr_count += 1;
+  // print_callcounts();
   StmtNodeBuilder B(Pred, Dst, *currBldrCtx);
 
   ProgramStateRef state = Pred->getState();
@@ -785,6 +796,8 @@ void ExprEngine::VisitGuardedExpr(const Expr *Ex,
                                   ExplodedNode *Pred,
                                   ExplodedNodeSet &Dst) {
   assert(L && R);
+  VisitGuardedExpr_count += 1;
+  // print_callcounts();
 
   StmtNodeBuilder B(Pred, Dst, *currBldrCtx);
   ProgramStateRef state = Pred->getState();
@@ -846,6 +859,8 @@ void ExprEngine::VisitGuardedExpr(const Expr *Ex,
 void ExprEngine::
 VisitOffsetOfExpr(const OffsetOfExpr *OOE,
                   ExplodedNode *Pred, ExplodedNodeSet &Dst) {
+  VisitOffsetOfExpr_count += 1;
+  // print_callcounts();
   StmtNodeBuilder B(Pred, Dst, *currBldrCtx);
   Expr::EvalResult Result;
   if (OOE->EvaluateAsInt(Result, getContext())) {
@@ -866,6 +881,8 @@ void ExprEngine::
 VisitUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *Ex,
                               ExplodedNode *Pred,
                               ExplodedNodeSet &Dst) {
+  VisitUnaryExprOrTypeTraitExpr_count += 1; 
+  // print_callcounts();
   // FIXME: Prechecks eventually go in ::Visit().
   ExplodedNodeSet CheckedSet;
   getCheckerManager().runCheckersForPreStmt(CheckedSet, Pred, Ex, *this);
@@ -921,6 +938,8 @@ void ExprEngine::handleUOExtension(ExplodedNode *N, const UnaryOperator *U,
 
 void ExprEngine::VisitUnaryOperator(const UnaryOperator* U, ExplodedNode *Pred,
                                     ExplodedNodeSet &Dst) {
+  VisitUnaryOperator_count += 1;
+  // print_callcounts();
   // FIXME: Prechecks eventually go in ::Visit().
   ExplodedNodeSet CheckedSet;
   getCheckerManager().runCheckersForPreStmt(CheckedSet, Pred, U, *this);
@@ -1058,6 +1077,8 @@ void ExprEngine::VisitUnaryOperator(const UnaryOperator* U, ExplodedNode *Pred,
 void ExprEngine::VisitIncrementDecrementOperator(const UnaryOperator* U,
                                                  ExplodedNode *Pred,
                                                  ExplodedNodeSet &Dst) {
+  VisitIncrementDecrementOperator_count += 1;
+  // print_callcounts();
   // Handle ++ and -- (both pre- and post-increment).
   assert (U->isIncrementDecrementOp());
   const Expr *Ex = U->getSubExpr()->IgnoreParens();

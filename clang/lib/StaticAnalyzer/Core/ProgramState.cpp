@@ -72,11 +72,15 @@ int64_t ProgramState::getID() const {
 ProgramStateManager::ProgramStateManager(ASTContext &Ctx,
                                          StoreManagerCreator CreateSMgr,
                                          ConstraintManagerCreator CreateCMgr,
-                                         llvm::BumpPtrAllocator &alloc,
+                                         llvm::BumpPtrAllocator &alloc1,
+                                         llvm::BumpPtrAllocator &alloc2,
+                                         llvm::BumpPtrAllocator &alloc3,
+                                         llvm::BumpPtrAllocator &alloc4,
+                                         llvm::BumpPtrAllocator &alloc5,
                                          ExprEngine *ExprEng)
-  : Eng(ExprEng), EnvMgr(alloc), GDMFactory(alloc),
-    svalBuilder(createSimpleSValBuilder(alloc, Ctx, *this)),
-    CallEventMgr(new CallEventManager(alloc)), Alloc(alloc) {
+  : Eng(ExprEng), EnvMgr(alloc1), GDMFactory(alloc2),
+    svalBuilder(createSimpleSValBuilder(alloc3, Ctx, *this)),
+    CallEventMgr(new CallEventManager(alloc4)), Alloc(alloc5) {
   StoreMgr = (*CreateSMgr)(*this);
   ConstraintMgr = (*CreateCMgr)(*this, ExprEng);
 }

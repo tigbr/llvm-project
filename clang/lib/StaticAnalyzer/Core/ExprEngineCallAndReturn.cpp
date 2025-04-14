@@ -601,6 +601,8 @@ static ProgramStateRef getInlineFailedState(ProgramStateRef State,
 
 void ExprEngine::VisitCallExpr(const CallExpr *CE, ExplodedNode *Pred,
                                ExplodedNodeSet &dst) {
+  VisitCallExpr_count += 1;
+  // print_callcounts();
   // Perform the previsit of the CallExpr.
   ExplodedNodeSet dstPreVisit;
   getCheckerManager().runCheckersForPreStmt(dstPreVisit, Pred, CE, *this);
@@ -1305,6 +1307,8 @@ void ExprEngine::BifurcateCall(const MemRegion *BifurReg,
 
 void ExprEngine::VisitReturnStmt(const ReturnStmt *RS, ExplodedNode *Pred,
                                  ExplodedNodeSet &Dst) {
+  VisitReturnStmt_count += 1;
+  // print_callcounts();
   ExplodedNodeSet dstPreVisit;
   getCheckerManager().runCheckersForPreStmt(dstPreVisit, Pred, RS, *this);
 

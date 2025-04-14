@@ -844,12 +844,16 @@ void ExprEngine::handleConstructor(const Expr *E,
 void ExprEngine::VisitCXXConstructExpr(const CXXConstructExpr *CE,
                                        ExplodedNode *Pred,
                                        ExplodedNodeSet &Dst) {
+  VisitCXXConstructExpr_count += 1;
+  // print_callcounts();
   handleConstructor(CE, Pred, Dst);
 }
 
 void ExprEngine::VisitCXXInheritedCtorInitExpr(
     const CXXInheritedCtorInitExpr *CE, ExplodedNode *Pred,
     ExplodedNodeSet &Dst) {
+  VisitCXXInheritedCtorInitExpr_count += 1;
+  // print_callcounts();
   handleConstructor(CE, Pred, Dst);
 }
 
@@ -860,6 +864,8 @@ void ExprEngine::VisitCXXDestructor(QualType ObjectType,
                                     ExplodedNode *Pred,
                                     ExplodedNodeSet &Dst,
                                     EvalCallOptions &CallOpts) {
+  VisitCXXDestructor_count += 1;
+  // print_callcounts();
   assert(S && "A destructor without a trigger!");
   const LocationContext *LCtx = Pred->getLocationContext();
   ProgramStateRef State = Pred->getState();
@@ -923,6 +929,8 @@ void ExprEngine::VisitCXXDestructor(QualType ObjectType,
 void ExprEngine::VisitCXXNewAllocatorCall(const CXXNewExpr *CNE,
                                           ExplodedNode *Pred,
                                           ExplodedNodeSet &Dst) {
+  VisitCXXNewAllocatorCall_count += 1;
+  // print_callcounts();
   ProgramStateRef State = Pred->getState();
   const LocationContext *LCtx = Pred->getLocationContext();
   PrettyStackTraceLoc CrashInfo(getContext().getSourceManager(),
@@ -994,6 +1002,8 @@ void ExprEngine::VisitCXXNewAllocatorCall(const CXXNewExpr *CNE,
 
 void ExprEngine::VisitCXXNewExpr(const CXXNewExpr *CNE, ExplodedNode *Pred,
                                    ExplodedNodeSet &Dst) {
+  VisitCXXNewExpr_count += 1;
+  // print_callcounts();
   // FIXME: Much of this should eventually migrate to CXXAllocatorCall.
   // Also, we need to decide how allocators actually work -- they're not
   // really part of the CXXNewExpr because they happen BEFORE the
@@ -1126,7 +1136,8 @@ void ExprEngine::VisitCXXNewExpr(const CXXNewExpr *CNE, ExplodedNode *Pred,
 
 void ExprEngine::VisitCXXDeleteExpr(const CXXDeleteExpr *CDE,
                                     ExplodedNode *Pred, ExplodedNodeSet &Dst) {
-
+  VisitCXXDeleteExpr_count += 1;
+  // print_callcounts();
   CallEventManager &CEMgr = getStateManager().getCallEventManager();
   CallEventRef<CXXDeallocatorCall> Call = CEMgr.getCXXDeallocatorCall(
       CDE, Pred->getState(), Pred->getLocationContext(), getCFGElementRef());
@@ -1148,6 +1159,8 @@ void ExprEngine::VisitCXXDeleteExpr(const CXXDeleteExpr *CDE,
 
 void ExprEngine::VisitCXXCatchStmt(const CXXCatchStmt *CS, ExplodedNode *Pred,
                                    ExplodedNodeSet &Dst) {
+  VisitCXXCatchStmt_count += 1;
+  // print_callcounts();
   const VarDecl *VD = CS->getExceptionDecl();
   if (!VD) {
     Dst.Add(Pred);
@@ -1166,6 +1179,8 @@ void ExprEngine::VisitCXXCatchStmt(const CXXCatchStmt *CS, ExplodedNode *Pred,
 
 void ExprEngine::VisitCXXThisExpr(const CXXThisExpr *TE, ExplodedNode *Pred,
                                     ExplodedNodeSet &Dst) {
+  VisitCXXThisExpr_count += 1;
+  // print_callcounts();
   StmtNodeBuilder Bldr(Pred, Dst, *currBldrCtx);
 
   // Get the this object region from StoreManager.
@@ -1182,6 +1197,8 @@ void ExprEngine::VisitCXXThisExpr(const CXXThisExpr *TE, ExplodedNode *Pred,
 
 void ExprEngine::VisitLambdaExpr(const LambdaExpr *LE, ExplodedNode *Pred,
                                  ExplodedNodeSet &Dst) {
+  VisitLambdaExpr_count += 1;
+  // print_callcounts();
   const LocationContext *LocCtxt = Pred->getLocationContext();
 
   // Get the region of the lambda itself.

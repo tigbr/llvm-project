@@ -536,7 +536,11 @@ public:
   ProgramStateManager(ASTContext &Ctx,
                  StoreManagerCreator CreateStoreManager,
                  ConstraintManagerCreator CreateConstraintManager,
-                 llvm::BumpPtrAllocator& alloc,
+                 llvm::BumpPtrAllocator& alloc1,
+                 llvm::BumpPtrAllocator& alloc2,
+                 llvm::BumpPtrAllocator& alloc3,
+                 llvm::BumpPtrAllocator& alloc4,
+                 llvm::BumpPtrAllocator& alloc5,
                  ExprEngine *expreng);
 
   ~ProgramStateManager();

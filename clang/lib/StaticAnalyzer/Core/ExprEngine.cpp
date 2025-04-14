@@ -217,6 +217,11 @@ REGISTER_TRAIT_WITH_PROGRAMSTATE(PendingArrayDestruction,
 //===----------------------------------------------------------------------===//
 
 static const char* TagProviderName = "ExprEngine";
+static llvm::BumpPtrAllocator alloc1;
+static llvm::BumpPtrAllocator alloc2;
+static llvm::BumpPtrAllocator alloc3;
+static llvm::BumpPtrAllocator alloc4;
+static llvm::BumpPtrAllocator alloc5;
 
 ExprEngine::ExprEngine(cross_tu::CrossTranslationUnitContext &CTU,
                        AnalysisManager &mgr, SetOfConstDecls *VisitedCalleesIn,
@@ -225,7 +230,7 @@ ExprEngine::ExprEngine(cross_tu::CrossTranslationUnitContext &CTU,
       AMgr(mgr), AnalysisDeclContexts(mgr.getAnalysisDeclContextManager()),
       Engine(*this, FS, mgr.getAnalyzerOptions()), G(Engine.getGraph()),
       StateMgr(getContext(), mgr.getStoreManagerCreator(),
-               mgr.getConstraintManagerCreator(), G.getAllocator(), this),
+               mgr.getConstraintManagerCreator(), alloc1, alloc2, alloc3, alloc4, alloc5, this),
       SymMgr(StateMgr.getSymbolManager()), MRMgr(StateMgr.getRegionManager()),
       svalBuilder(StateMgr.getSValBuilder()), ObjCNoRet(mgr.getASTContext()),
       BR(mgr, *this), VisitedCallees(VisitedCalleesIn),
@@ -1659,6 +1664,8 @@ void ExprEngine::processCleanupTemporaryBranch(const CXXBindTemporaryExpr *BTE,
 void ExprEngine::VisitCXXBindTemporaryExpr(const CXXBindTemporaryExpr *BTE,
                                            ExplodedNodeSet &PreVisit,
                                            ExplodedNodeSet &Dst) {
+  VisitCXXBindTemporaryExpr_count += 1;
+  // print_callcounts();
   // This is a fallback solution in case we didn't have a construction
   // context when we were constructing the temporary. Otherwise the map should
   // have been populated there.
@@ -3057,6 +3064,8 @@ void ExprEngine::processSwitch(SwitchNodeBuilder& builder) {
 void ExprEngine::VisitCommonDeclRefExpr(const Expr *Ex, const NamedDecl *D,
                                         ExplodedNode *Pred,
                                         ExplodedNodeSet &Dst) {
+  VisitCommonDeclRefExpr_count += 1;
+  // print_callcounts();
   StmtNodeBuilder Bldr(Pred, Dst, *currBldrCtx);
 
   ProgramStateRef state = Pred->getState();
@@ -3193,10 +3202,51 @@ void ExprEngine::VisitCommonDeclRefExpr(const Expr *Ex, const NamedDecl *D,
   llvm_unreachable("Support for this Decl not implemented.");
 }
 
+void ExprEngine::print_callcounts() {
+  llvm::outs() << '\n';
+  llvm::outs() << "VisitArrayInitLoopExpr_count: " << VisitArrayInitLoopExpr_count << '\n';
+  llvm::outs() << "VisitArraySubscriptExpr_count: " << VisitArraySubscriptExpr_count << '\n';
+  llvm::outs() << "VisitGCCAsmStmt_count: " << VisitGCCAsmStmt_count << '\n';
+  llvm::outs() << "VisitMSAsmStmt_count: " << VisitMSAsmStmt_count << '\n';
+  llvm::outs() << "VisitBlockExpr_count: " << VisitBlockExpr_count << '\n';
+  llvm::outs() << "VisitLambdaExpr_count: " << VisitLambdaExpr_count << '\n';
+  llvm::outs() << "VisitBinaryOperator_count: " << VisitBinaryOperator_count << '\n';
+  llvm::outs() << "VisitCallExpr_count: " << VisitCallExpr_count << '\n';
+  llvm::outs() << "VisitCast_count: " << VisitCast_count << '\n';
+  llvm::outs() << "VisitCompoundLiteralExpr_count: " << VisitCompoundLiteralExpr_count << '\n';
+  llvm::outs() << "VisitCommonDeclRefExpr_count: " << VisitCommonDeclRefExpr_count << '\n';
+  llvm::outs() << "VisitDeclStmt_count: " << VisitDeclStmt_count << '\n';
+  llvm::outs() << "VisitGuardedExpr_count: " << VisitGuardedExpr_count << '\n';
+  llvm::outs() << "VisitInitListExpr_count: " << VisitInitListExpr_count << '\n';
+  llvm::outs() << "VisitLogicalExpr_count: " << VisitLogicalExpr_count << '\n';
+  llvm::outs() << "VisitMemberExpr_count: " << VisitMemberExpr_count << '\n';
+  llvm::outs() << "VisitAtomicExpr_count: " << VisitAtomicExpr_count << '\n';
+  llvm::outs() << "VisitObjCAtSynchronizedStmt_count: " << VisitObjCAtSynchronizedStmt_count << '\n';
+  llvm::outs() << "VisitLvalObjCIvarRefExpr_count: " << VisitLvalObjCIvarRefExpr_count << '\n';
+  llvm::outs() << "VisitObjCForCollectionStmt_count: " << VisitObjCForCollectionStmt_count << '\n';
+  llvm::outs() << "VisitObjCMessage_count: " << VisitObjCMessage_count << '\n';
+  llvm::outs() << "VisitReturnStmt_count: " << VisitReturnStmt_count << '\n';
+  llvm::outs() << "VisitOffsetOfExpr_count: " << VisitOffsetOfExpr_count << '\n';
+  llvm::outs() << "VisitUnaryExprOrTypeTraitExpr_count: " << VisitUnaryExprOrTypeTraitExpr_count << '\n';
+  llvm::outs() << "VisitUnaryOperator_count: " << VisitUnaryOperator_count << '\n';
+  llvm::outs() << "VisitIncrementDecrementOperator_count: " << VisitIncrementDecrementOperator_count << '\n';
+  llvm::outs() << "VisitCXXBindTemporaryExpr_count: " << VisitCXXBindTemporaryExpr_count << '\n';
+  llvm::outs() << "VisitCXXCatchStmt_count: " << VisitCXXCatchStmt_count << '\n';
+  llvm::outs() << "VisitCXXThisExpr_count: " << VisitCXXThisExpr_count << '\n';
+  llvm::outs() << "VisitCXXConstructExpr_count: " << VisitCXXConstructExpr_count << '\n';
+  llvm::outs() << "VisitCXXInheritedCtorInitExpr_count: " << VisitCXXInheritedCtorInitExpr_count << '\n';
+  llvm::outs() << "VisitCXXDestructor_count: " << VisitCXXDestructor_count << '\n';
+  llvm::outs() << "VisitCXXNewAllocatorCall_count: " << VisitCXXNewAllocatorCall_count << '\n';
+  llvm::outs() << "VisitCXXNewExpr_count: " << VisitCXXNewExpr_count << '\n';
+  llvm::outs() << "VisitCXXDeleteExpr_count: " << VisitCXXDeleteExpr_count << '\n';
+}
+
 /// VisitArrayInitLoopExpr - Transfer function for array init loop.
 void ExprEngine::VisitArrayInitLoopExpr(const ArrayInitLoopExpr *Ex,
                                         ExplodedNode *Pred,
                                         ExplodedNodeSet &Dst) {
+  VisitArrayInitLoopExpr_count += 1;
+  // print_callcounts();
   ExplodedNodeSet CheckerPreStmt;
   getCheckerManager().runCheckersForPreStmt(CheckerPreStmt, Pred, Ex, *this);
 
@@ -3295,6 +3345,8 @@ void ExprEngine::VisitArrayInitLoopExpr(const ArrayInitLoopExpr *Ex,
 void ExprEngine::VisitArraySubscriptExpr(const ArraySubscriptExpr *A,
                                              ExplodedNode *Pred,
                                              ExplodedNodeSet &Dst){
+  VisitArraySubscriptExpr_count += 1;
+  // print_callcounts();
   const Expr *Base = A->getBase()->IgnoreParens();
   const Expr *Idx  = A->getIdx()->IgnoreParens();
 
@@ -3345,6 +3397,8 @@ a vector and not a forbidden lvalue type");
 /// VisitMemberExpr - Transfer function for member expressions.
 void ExprEngine::VisitMemberExpr(const MemberExpr *M, ExplodedNode *Pred,
                                  ExplodedNodeSet &Dst) {
+  VisitMemberExpr_count += 1;
+  // print_callcounts();
   // FIXME: Prechecks eventually go in ::Visit().
   ExplodedNodeSet CheckedSet;
   getCheckerManager().runCheckersForPreStmt(CheckedSet, Pred, M, *this);
@@ -3433,6 +3487,8 @@ void ExprEngine::VisitMemberExpr(const MemberExpr *M, ExplodedNode *Pred,
 
 void ExprEngine::VisitAtomicExpr(const AtomicExpr *AE, ExplodedNode *Pred,
                                  ExplodedNodeSet &Dst) {
+  VisitAtomicExpr_count += 1;
+  // print_callcounts();
   ExplodedNodeSet AfterPreSet;
   getCheckerManager().runCheckersForPreStmt(AfterPreSet, Pred, AE, *this);
 
@@ -3776,6 +3832,8 @@ void ExprEngine::evalEagerlyAssumeBinOpBifurcation(ExplodedNodeSet &Dst,
 
 void ExprEngine::VisitGCCAsmStmt(const GCCAsmStmt *A, ExplodedNode *Pred,
                                  ExplodedNodeSet &Dst) {
+  VisitGCCAsmStmt_count += 1;
+  // print_callcounts();
   StmtNodeBuilder Bldr(Pred, Dst, *currBldrCtx);
   // We have processed both the inputs and the outputs.  All of the outputs
   // should evaluate to Locs.  Nuke all of their values.
@@ -3799,6 +3857,8 @@ void ExprEngine::VisitGCCAsmStmt(const GCCAsmStmt *A, ExplodedNode *Pred,
 
 void ExprEngine::VisitMSAsmStmt(const MSAsmStmt *A, ExplodedNode *Pred,
                                 ExplodedNodeSet &Dst) {
+  VisitMSAsmStmt_count += 1;
+  // print_callcounts();
   StmtNodeBuilder Bldr(Pred, Dst, *currBldrCtx);
   Bldr.generateNode(A, Pred, Pred->getState());
 }

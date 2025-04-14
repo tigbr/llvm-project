@@ -14,6 +14,8 @@
 #ifndef LLVM_ADT_IMMUTABLESET_H
 #define LLVM_ADT_IMMUTABLESET_H
 
+#include "llvm/Support/raw_ostream.h"
+
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
@@ -27,6 +29,7 @@
 #include <iterator>
 #include <new>
 #include <vector>
+
 
 namespace llvm {
 
@@ -364,6 +367,8 @@ class ImutAVLFactory {
   using key_type_ref = typename TreeTy::key_type_ref;
   using CacheTy = DenseMap<unsigned, TreeTy*>;
 
+  static unsigned created_counts;
+
   CacheTy Cache;
   uintptr_t Allocator;
   std::vector<TreeTy*> createdNodes;
@@ -383,13 +388,17 @@ class ImutAVLFactory {
 
 public:
   ImutAVLFactory()
-    : Allocator(reinterpret_cast<uintptr_t>(new BumpPtrAllocator())) {}
+    : Allocator(reinterpret_cast<uintptr_t>(new BumpPtrAllocator())) {
+		created_counts += 1;
+	}
 
   ImutAVLFactory(BumpPtrAllocator& Alloc)
-    : Allocator(reinterpret_cast<uintptr_t>(&Alloc) | 0x1) {}
+    : Allocator(reinterpret_cast<uintptr_t>(&Alloc) | 0x1) {
+	}
 
   ~ImutAVLFactory() {
     if (ownsAllocator()) delete &getAllocator();
+	// llvm::outs() << created_counts << '\n';
   }
 
   TreeTy* add(TreeTy* T, value_type_ref V) {
@@ -633,6 +642,9 @@ public:
     return TNew;
   }
 };
+
+template <typename ImutInfo>
+unsigned ImutAVLFactory<ImutInfo>::created_counts = 0;
 
 //===----------------------------------------------------------------------===//
 // Immutable AVL-Tree Iterators.

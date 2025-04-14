@@ -183,7 +183,10 @@ public:
              SetOfConstDecls *VisitedCalleesIn,
              FunctionSummariesTy *FS, InliningModes HowToInlineIn);
 
-  virtual ~ExprEngine() = default;
+  // virtual ~ExprEngine() = default;
+  virtual ~ExprEngine() {
+	 print_callcounts();
+  }
 
   /// Returns true if there is still simulation state on the worklist.
   bool ExecuteWorkList(const LocationContext *L, unsigned Steps = 150000) {
@@ -439,6 +442,44 @@ public:
   bool hasWorkRemaining() const { return Engine.hasWorkRemaining(); }
 
   const CoreEngine &getCoreEngine() const { return Engine; }
+
+  int VisitArrayInitLoopExpr_count  = 0;
+  int VisitArraySubscriptExpr_count = 0;
+  int VisitGCCAsmStmt_count = 0;
+  int VisitMSAsmStmt_count = 0;
+  int VisitBlockExpr_count = 0;
+  int VisitLambdaExpr_count = 0;
+  int VisitBinaryOperator_count = 0;
+  int VisitCallExpr_count = 0;
+  int VisitCast_count = 0;
+  int VisitCompoundLiteralExpr_count = 0;
+  int VisitCommonDeclRefExpr_count = 0;
+  int VisitDeclStmt_count = 0;
+  int VisitGuardedExpr_count = 0;
+  int VisitInitListExpr_count = 0;
+  int VisitLogicalExpr_count = 0;
+  int VisitMemberExpr_count = 0;
+  int VisitAtomicExpr_count = 0;
+  int VisitObjCAtSynchronizedStmt_count = 0;
+  int VisitLvalObjCIvarRefExpr_count = 0;
+  int VisitObjCForCollectionStmt_count = 0;
+  int VisitObjCMessage_count = 0;
+  int VisitReturnStmt_count = 0;
+  int VisitOffsetOfExpr_count = 0;
+  int VisitUnaryExprOrTypeTraitExpr_count = 0;
+  int VisitUnaryOperator_count = 0;
+  int VisitIncrementDecrementOperator_count = 0;
+  int VisitCXXBindTemporaryExpr_count = 0;
+  int VisitCXXCatchStmt_count = 0;
+  int VisitCXXThisExpr_count = 0;
+  int VisitCXXConstructExpr_count = 0;
+  int VisitCXXInheritedCtorInitExpr_count = 0;
+  int VisitCXXDestructor_count = 0;
+  int VisitCXXNewAllocatorCall_count = 0;
+  int VisitCXXNewExpr_count = 0;
+  int VisitCXXDeleteExpr_count = 0;
+
+  void print_callcounts();
 
 public:
   /// Visit - Transfer function logic for all statements.  Dispatches to

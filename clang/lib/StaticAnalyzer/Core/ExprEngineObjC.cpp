@@ -21,6 +21,8 @@ using namespace ento;
 void ExprEngine::VisitLvalObjCIvarRefExpr(const ObjCIvarRefExpr *Ex,
                                           ExplodedNode *Pred,
                                           ExplodedNodeSet &Dst) {
+  VisitLvalObjCIvarRefExpr_count += 1;
+  // print_callcounts();
   ProgramStateRef state = Pred->getState();
   const LocationContext *LCtx = Pred->getLocationContext();
   SVal baseVal = state->getSVal(Ex->getBase(), LCtx);
@@ -38,6 +40,8 @@ void ExprEngine::VisitLvalObjCIvarRefExpr(const ObjCIvarRefExpr *Ex,
 void ExprEngine::VisitObjCAtSynchronizedStmt(const ObjCAtSynchronizedStmt *S,
                                              ExplodedNode *Pred,
                                              ExplodedNodeSet &Dst) {
+  VisitObjCAtSynchronizedStmt_count += 1;
+  // print_callcounts();
   getCheckerManager().runCheckersForPreStmt(Dst, Pred, S, *this);
 }
 
@@ -83,7 +87,8 @@ static void populateObjCForDestinationSet(
 void ExprEngine::VisitObjCForCollectionStmt(const ObjCForCollectionStmt *S,
                                             ExplodedNode *Pred,
                                             ExplodedNodeSet &Dst) {
-
+	VisitObjCForCollectionStmt_count += 1;
+  // print_callcounts();
   // ObjCForCollectionStmts are processed in two places.  This method
   // handles the case where an ObjCForCollectionStmt* occurs as one of the
   // statements within a basic block.  This transfer function does two things:
@@ -147,6 +152,8 @@ void ExprEngine::VisitObjCForCollectionStmt(const ObjCForCollectionStmt *S,
 void ExprEngine::VisitObjCMessage(const ObjCMessageExpr *ME,
                                   ExplodedNode *Pred,
                                   ExplodedNodeSet &Dst) {
+  VisitObjCMessage_count += 1;
+  // print_callcounts();
   CallEventManager &CEMgr = getStateManager().getCallEventManager();
   CallEventRef<ObjCMethodCall> Msg = CEMgr.getObjCMethodCall(
       ME, Pred->getState(), Pred->getLocationContext(), getCFGElementRef());

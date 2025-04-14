@@ -40,7 +40,7 @@ static bool areSwitchBranchesIdentical(const SwitchBranch &LHS,
     if (!tidy::utils::areStatementsIdentical(LHS[I]->stripLabelLikeStatements(),
                                              RHS[I]->stripLabelLikeStatements(),
                                              Context)) {
-      return false;
+		
     }
   }
 
