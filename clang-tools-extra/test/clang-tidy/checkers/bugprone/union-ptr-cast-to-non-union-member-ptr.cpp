@@ -1,14 +1,18 @@
 // RUN: %check_clang_tidy %s bugprone-union-ptr-cast-to-non-union-member-ptr %t
 
-// FIXME: Add something that triggers the check here.
-void f();
-// CHECK-MESSAGES: :[[@LINE-1]]:6: warning: function 'f' is insufficiently awesome [bugprone-union-ptr-cast-to-non-union-member-ptr]
+typedef long **lpp;
 
-// FIXME: Verify the applied fix.
-//   * Make the CHECK patterns specific enough and try to make verified lines
-//     unique to avoid incorrect matches.
-//   * Use {{}} for regular expressions.
-// CHECK-FIXES: {{^}}void awesome_f();{{$}}
+void f() {
+    union {
+        short s;
+        float f;
+    } u;
 
-// FIXME: Add something that doesn't trigger the check here.
-void awesome_f2();
+    // Pointer to union is cast to pointer with pointee type which is not contained in the union!
+    // CHECK-MESSAGES: :[[@LINE+1]]:16: warning: bad
+    long  *l = (long*)  &u;
+    short *s = (short*) &u;
+    float *f = (float*) &u;
+    char  *c = (char*)  &u;
+    void  *v = (void*)  &u;
+}
