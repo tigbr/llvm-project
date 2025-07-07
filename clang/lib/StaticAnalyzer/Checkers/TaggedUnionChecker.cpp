@@ -56,18 +56,56 @@ struct tagged_union_maps {
 	std::map<llvm::APSInt, bool> tag_usages;
 };
 
-class TaggedUnionChecker : public Checker<check::ASTDecl<TranslationUnitDecl>, check::BranchCondition, check::Location> {
+class TaggedUnionChecker;
+
+class MyMatchCallback : public clang::ast_matchers::MatchFinder::MatchCallback {
+	BugReporter *BR;
+	AnalysisDeclContext *ADC;
+	const TaggedUnionChecker * const C;
+
+public:
+	std::vector<const FieldDecl*> field_decls;
+	llvm::SmallSet<llvm::APSInt, 32> enum_values;
+
+	const FieldDecl *enum_field;
+	const FieldDecl *union_field;
+
+    void initialize(BugReporter *Reporter, AnalysisDeclContext *Context);
+	virtual void run(const clang::ast_matchers::MatchFinder::MatchResult &Result) override;
+	MyMatchCallback(const TaggedUnionChecker * const Checker)
+		: BR{nullptr}, ADC{nullptr}, C{Checker}, enum_field{nullptr}, union_field{nullptr} {}
+};
+
+class TaggedUnionChecker : public Checker<check::ASTDecl<TranslationUnitDecl>, check::PostStmt<DeclRefExpr>, check::PostStmt<BinaryOperator>, check::BranchCondition, check::Location> {
 
 	const BugType BT{this, "Inconsistent tagged union access!"};
     mutable std::map<const RecordDecl*, std::map<llvm::APSInt, const FieldDecl*>> tagged_union_invariants;
 	mutable std::map<const RecordDecl*, std::map<llvm::APSInt, const FieldDecl*>> tagged_union_field_usages;
+	mutable std::vector<ExplodedNode*> on_hold_union_member_writes;
 
 	// void checkEnumTagAssignment(SVal Loc, bool IsLoad, const Stmt *S, CheckerContext &C) const;
 	void checkEnumTagAccess(SVal Loc, bool IsLoad, const Stmt *S, CheckerContext &C) const;
+    mutable MyMatchCallback MatchCallback;
+    mutable clang::ast_matchers::MatchFinder Finder;
 
 public:
+
+    TaggedUnionChecker() : MatchCallback{this} {
+		using namespace clang::ast_matchers;
+		Finder.addMatcher(recordDecl(
+	      anyOf(isStruct(), isClass()),
+	      has(fieldDecl(hasType(qualType(hasCanonicalType(recordType()))))
+	              .bind("union")),
+	      has(fieldDecl(hasType(qualType(hasCanonicalType(enumType()))))
+	              .bind("tags")))
+	      .bind("root"),
+	    &MatchCallback);
+	}
+ 
 	void checkBranchCondition(const clang::Stmt *Statement, CheckerContext &C) const;
 	void checkLocation(SVal Loc, bool IsLoad, const Stmt *S, CheckerContext &C) const;
+    void checkPostStmt(const BinaryOperator *O, CheckerContext &C) const;
+    void checkPostStmt(const DeclRefExpr *D, CheckerContext &C) const;
 	void checkASTDecl(const TranslationUnitDecl *D, AnalysisManager &Mgr, BugReporter &BR) const;
 	void checkASTCodeBody(const Decl *D, AnalysisManager &AM, BugReporter &B) const;
 };
@@ -77,24 +115,6 @@ public:
 
 #define GOTHERE GOTHEREM("")
 #define GOTHEREM(message) printf("(%s:%i) %s\n", __FILE__, __LINE__, message)
-
-class MyMatchCallback : public clang::ast_matchers::MatchFinder::MatchCallback {
-	BugReporter &BR;
-	AnalysisDeclContext *ADC;
-	const Checker<check::ASTDecl<TranslationUnitDecl>, check::BranchCondition, check::Location> *C;
-
-public:
-	std::vector<const FieldDecl*> field_decls;
-	llvm::SmallSet<llvm::APSInt, 32> enum_values;
-	const FieldDecl *enum_field;
-	const FieldDecl *union_field;
-
-	virtual void run(const clang::ast_matchers::MatchFinder::MatchResult &Result) override;
-	MyMatchCallback(BugReporter &Reporter, AnalysisDeclContext *Context, const Checker<check::ASTDecl<TranslationUnitDecl>, check::BranchCondition, check::Location> *C)
-		: BR(Reporter), ADC(Context), C{C}, enum_field{nullptr}, union_field{nullptr} {}
-
-	
-};
 
 static bool isUnion(const FieldDecl *R) {
 	return R->getType().getCanonicalType().getTypePtr()->isUnionType();
@@ -117,6 +137,11 @@ std::size_t getNumberOfValidEnumValues(const EnumDecl *ED) {
 	}
 
 	return EnumValues.size();
+}
+
+void MyMatchCallback::initialize(BugReporter *Reporter, AnalysisDeclContext *Context) {
+	this->BR = Reporter;
+	this->ADC = Context;
 }
 
 void MyMatchCallback::run(const clang::ast_matchers::MatchFinder::MatchResult &Result) {
@@ -162,9 +187,9 @@ void MyMatchCallback::run(const clang::ast_matchers::MatchFinder::MatchResult &R
 	const std::size_t TagCount = getNumberOfValidEnumValues(EnumDef);
 
 	if (UnionMemberCount > TagCount) {
-	  PathDiagnosticLocation ELoc = PathDiagnosticLocation::createBegin(Root, BR.getSourceManager(), ADC);
+	  PathDiagnosticLocation ELoc = PathDiagnosticLocation::createBegin(Root, BR->getSourceManager(), ADC);
 
-	  BR.EmitBasicReport(ADC->getDecl(), C, "Tagged union checker1", "Tagged union checker2", "Tagged union has more data members than tags!", ELoc);
+	  BR->EmitBasicReport(ADC->getDecl(), C, "Tagged union checker1", "Tagged union checker2", "Tagged union has more data members than tags!", ELoc);
 	} 
 
 }
@@ -207,6 +232,25 @@ static bool isInCondition(const Stmt *S, CheckerContext &C) {
     S = ParentS;
   }
   return CondFound;
+}
+
+
+/*
+ * DeclRefExpr nem feltétlenül egy közevtlen union adattagra hivatkozik:
+ *
+ * foo.bar.tagged_union.data.field1.a.b.c.d = 7;
+ *
+ */
+void TaggedUnionChecker::checkPostStmt(const DeclRefExpr *D, CheckerContext &C) const {
+	if (const FieldDecl *d = llvm::dyn_cast<FieldDecl>(D->getDecl())) {
+		d->getParent() -> isUnion();
+	}
+}
+
+void TaggedUnionChecker::checkPostStmt(const BinaryOperator *O, CheckerContext &C) const {
+	if (O->getOpcode() == BO_Assign) {
+		
+	}
 }
 
 void TaggedUnionChecker::checkBranchCondition(const clang::Stmt *Statement, CheckerContext &C) const {
@@ -323,23 +367,13 @@ void TaggedUnionChecker::checkEnumTagAccess(SVal Loc, bool IsLoad, const Stmt *S
 	const RecordDecl *root = desugared_record_type->getDecl();
 
 	AnalysisManager &Mgr = C.getAnalysisManager();
-	MatchFinder Finder;
-	MyMatchCallback CB(C.getBugReporter(), Mgr.getAnalysisDeclContext(root), this);
-	  Finder.addMatcher(
-	    recordDecl(
-	        anyOf(isStruct(), isClass()),
-	        has(fieldDecl(hasType(qualType(hasCanonicalType(recordType()))))
-	                .bind("union")),
-	        has(fieldDecl(hasType(qualType(hasCanonicalType(enumType()))))
-	                .bind("tags")))
-	        .bind("root"),
-	    &CB);
+	MatchCallback.initialize(&C.getBugReporter(), Mgr.getAnalysisDeclContext(root));
 	Finder.matchAST(Mgr.getASTContext());
-	if (!CB.enum_field || !CB.union_field) return;
+	if (!MatchCallback.enum_field || !MatchCallback.union_field) return;
 
 	MemRegionManager &memregion_manager = region->getMemRegionManager();
-	const FieldRegion *union_field_region = memregion_manager.getFieldRegion(CB.union_field, tvr);
-	const FieldRegion *enum_field_region = memregion_manager.getFieldRegion(CB.enum_field, tvr);
+	const FieldRegion *union_field_region = memregion_manager.getFieldRegion(MatchCallback.union_field, tvr);
+	const FieldRegion *enum_field_region = memregion_manager.getFieldRegion(MatchCallback.enum_field, tvr);
 
 #if 0
   const NoteTag *constructSetEofNoteTag(CheckerContext &C, SymbolRef StreamSym) const {
@@ -399,23 +433,13 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 	const RecordDecl *root = desugared_record_type->getDecl();
 
 	AnalysisManager &Mgr = C.getAnalysisManager();
-	MatchFinder Finder;
-	MyMatchCallback CB(C.getBugReporter(), Mgr.getAnalysisDeclContext(root), this);
-	  Finder.addMatcher(
-	    recordDecl(
-	        anyOf(isStruct(), isClass()),
-	        has(fieldDecl(hasType(qualType(hasCanonicalType(recordType()))))
-	                .bind("union")),
-	        has(fieldDecl(hasType(qualType(hasCanonicalType(enumType()))))
-	                .bind("tags")))
-	        .bind("root"),
-	    &CB);	
+	MatchCallback.initialize(&C.getBugReporter(), Mgr.getAnalysisDeclContext(root));
 	Finder.matchAST(Mgr.getASTContext());
-	if (!CB.enum_field || !CB.union_field) return;
+	if (!MatchCallback.enum_field || !MatchCallback.union_field) return;
 
 	MemRegionManager &memregion_manager = region->getMemRegionManager();
-	const FieldRegion *union_field_region = memregion_manager.getFieldRegion(CB.union_field, tvr);
-	const FieldRegion *enum_field_region = memregion_manager.getFieldRegion(CB.enum_field, tvr);
+	const FieldRegion *union_field_region = memregion_manager.getFieldRegion(MatchCallback.union_field, tvr);
+	const FieldRegion *enum_field_region = memregion_manager.getFieldRegion(MatchCallback.enum_field, tvr);
 
 	const ProgramStateRef &programstate = C.getState();
 	QualType enum_type = enum_field_region->getValueType();
@@ -424,7 +448,7 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
     const llvm::APSInt *tag_value_apsint = enum_value_sval.getAsInteger();
 	const FieldDecl *accessed_union_field = nullptr;
 	const FieldRegion *accessed_union_field_region = nullptr;
-	for (auto decl : CB.field_decls) {
+	for (auto decl : MatchCallback.field_decls) {
 		const FieldRegion *decl_region = memregion_manager.getFieldRegion(decl, union_field_region);
 		if (region->isSubRegionOf(decl_region)) {
 			accessed_union_field = decl;
@@ -440,7 +464,25 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 				if (accessed_union_field != expected_field->second) {
 					ExplodedNode *N = C.generateErrorNode();
 
-					auto Report = std::make_unique<PathSensitiveBugReport>(BT, BT.getDescription(), N);
+					EnumDecl *enum_declaration = llvm::dyn_cast<EnumDecl>(MatchCallback.enum_field->getType().getCanonicalType().getTypePtr()->getAsTagDecl());
+					const EnumConstantDecl *matched_decl;
+					for (const EnumConstantDecl *Enumerator : enum_declaration->enumerators()) {
+						if (Enumerator->getInitVal() == *tag_value_apsint) {
+							matched_decl = Enumerator;
+							break;
+						}
+					}
+
+                    report_messages.push_back("The '");
+					std::string *new_message = &report_messages[report_messages.size() - 1];
+					new_message->append(matched_decl->getName());
+					new_message->append("' enum constant is used to access the '");
+					new_message->append(accessed_union_field->getName());
+					new_message->append("' union member, when previously it accessed '");
+					new_message->append(expected_field->second->getName());
+					new_message->append("' in this tagged union");
+
+					auto Report = std::make_unique<PathSensitiveBugReport>(BT, *new_message, N);
 					Report->markInteresting(union_field_region);
 					Report->markInteresting(enum_field_region);
 					bugreporter::trackStoredValue(Loc, accessed_union_field_region, *Report);
@@ -450,7 +492,7 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 				map_for_current.emplace(*tag_value_apsint, accessed_union_field);
 				ExplodedNode *N = C.generateErrorNode();
 
-				EnumDecl *enum_declaration = llvm::dyn_cast<EnumDecl>(CB.enum_field->getType().getCanonicalType().getTypePtr()->getAsTagDecl());
+				EnumDecl *enum_declaration = llvm::dyn_cast<EnumDecl>(MatchCallback.enum_field->getType().getCanonicalType().getTypePtr()->getAsTagDecl());
 				const EnumConstantDecl *matched_decl;
 				for (const EnumConstantDecl *Enumerator : enum_declaration->enumerators()) {
 					if (Enumerator->getInitVal() == *tag_value_apsint) {
@@ -459,10 +501,11 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 					}
 				}
 				report_messages.push_back("");
-				std::string *new_message = &report_messages[report_messages.size()];
+				std::string *new_message = &report_messages[report_messages.size() - 1];
 				new_message->append(matched_decl->getName());
-				new_message->append(" is matched with ");
+				new_message->append(" is matched with the union field called '");
 				new_message->append(accessed_union_field->getName());
+				new_message->append("' in this tagged union");
 
 				auto Report = std::make_unique<PathSensitiveBugReport>(BT, *new_message, N);
 				Report->markInteresting(union_field_region);
@@ -479,19 +522,7 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 }
 
 void TaggedUnionChecker::checkASTDecl(const TranslationUnitDecl *D, AnalysisManager &Mgr, BugReporter &BR) const {
-	using namespace clang::ast_matchers;
-
-	MatchFinder Finder;
-	MyMatchCallback CB(BR, Mgr.getAnalysisDeclContext(D), this);
-	  Finder.addMatcher(
-	    recordDecl(
-	        anyOf(isStruct(), isClass()),
-	        has(fieldDecl(hasType(qualType(hasCanonicalType(recordType()))))
-	                .bind("union")),
-	        has(fieldDecl(hasType(qualType(hasCanonicalType(enumType()))))
-	                .bind("tags")))
-	        .bind("root"),
-	    &CB);	
+    MatchCallback.initialize(&BR, Mgr.getAnalysisDeclContext(D));
 	Finder.matchAST(Mgr.getASTContext());
 }
 
