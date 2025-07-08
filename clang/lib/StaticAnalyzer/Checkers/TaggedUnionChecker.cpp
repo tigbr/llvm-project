@@ -76,12 +76,18 @@ public:
 		: BR{nullptr}, ADC{nullptr}, C{Checker}, enum_field{nullptr}, union_field{nullptr} {}
 };
 
-class TaggedUnionChecker : public Checker<check::ASTDecl<TranslationUnitDecl>, check::PostStmt<DeclRefExpr>, check::PostStmt<BinaryOperator>, check::BranchCondition, check::Location> {
+struct PendingTaggedUnionAccess {
+	CheckerContext checker_context;
+	const FieldDecl *accessed_union_field;
+	SVal tag_sval;
+};
+
+class TaggedUnionChecker : public Checker<check::ASTDecl<TranslationUnitDecl>, check::PostStmt<DeclRefExpr>, check::PostStmt<BinaryOperator>, check::BranchCondition, check::Location, check::EndAnalysis> {
 
 	const BugType BT{this, "Inconsistent tagged union access!"};
     mutable std::map<const RecordDecl*, std::map<llvm::APSInt, const FieldDecl*>> tagged_union_invariants;
 	mutable std::map<const RecordDecl*, std::map<llvm::APSInt, const FieldDecl*>> tagged_union_field_usages;
-	mutable std::vector<ExplodedNode*> on_hold_union_member_writes;
+	mutable std::vector<PendingTaggedUnionAccess> contexts;
 
 	// void checkEnumTagAssignment(SVal Loc, bool IsLoad, const Stmt *S, CheckerContext &C) const;
 	void checkEnumTagAccess(SVal Loc, bool IsLoad, const Stmt *S, CheckerContext &C) const;
@@ -108,6 +114,7 @@ public:
     void checkPostStmt(const DeclRefExpr *D, CheckerContext &C) const;
 	void checkASTDecl(const TranslationUnitDecl *D, AnalysisManager &Mgr, BugReporter &BR) const;
 	void checkASTCodeBody(const Decl *D, AnalysisManager &AM, BugReporter &B) const;
+	void checkEndAnalysis(ExplodedGraph &G, BugReporter &BR, ExprEngine &Eng) const;
 };
 } // end anonymous namespace
 
@@ -456,10 +463,13 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 		}
 	}
 
-	if (tag_value_apsint) {
-		if (accessed_union_field) {
+	if (accessed_union_field) {
+		if (tag_value_apsint) {
 			auto &map_for_current = tagged_union_invariants[root];
 			auto expected_field = map_for_current.find(*tag_value_apsint);
+			if (contexts.size() < 5) {
+				contexts.emplace_back(PendingTaggedUnionAccess{C, accessed_union_field, enum_value_sval});
+			}
 			if (expected_field != map_for_current.end()) {
 				if (accessed_union_field != expected_field->second) {
 					ExplodedNode *N = C.generateErrorNode();
@@ -513,8 +523,8 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 				bugreporter::trackStoredValue(Loc, accessed_union_field_region, *Report);
 				C.emitReport(std::move(Report));
 				const NoteTag *first_access_of_field = C.getNoteTag([enum_field_region](PathSensitiveBugReport &BR) {
-						return "First access of field!";
-						});
+					return "First access of field!";
+				});
 				C.addTransition(C.getState(), first_access_of_field);
 			}
 		}
@@ -524,6 +534,12 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 void TaggedUnionChecker::checkASTDecl(const TranslationUnitDecl *D, AnalysisManager &Mgr, BugReporter &BR) const {
     MatchCallback.initialize(&BR, Mgr.getAnalysisDeclContext(D));
 	Finder.matchAST(Mgr.getASTContext());
+}
+
+void TaggedUnionChecker::checkEndAnalysis(ExplodedGraph &G, BugReporter &BR, ExprEngine &Eng) const {
+	for (int i = 0; i < contexts.size(); i += 1) {
+		
+	}
 }
 
 void ento::registerTaggedUnionChecker(CheckerManager &Mgr) {
