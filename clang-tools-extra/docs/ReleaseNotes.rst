@@ -136,8 +136,8 @@ New checks
   Finds unintended character output from ``unsigned char`` and ``signed char``
   to an ``ostream``.
 
-- New :doc:`bugprone-union-ptr-cast-to-non-union-member-ptr
-  <clang-tidy/checks/bugprone/union-ptr-cast-to-non-union-member-ptr>` check.
+- New :doc:`bugprone-union-ptr-cast-to-non-union-member-type-ptr
+  <clang-tidy/checks/bugprone/union-ptr-cast-to-non-union-member-type-ptr>` check.
 
   FIXME: Write a short description.
 

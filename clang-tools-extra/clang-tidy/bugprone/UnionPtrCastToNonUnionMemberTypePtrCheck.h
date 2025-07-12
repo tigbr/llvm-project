@@ -17,9 +17,9 @@ namespace clang::tidy::bugprone {
 ///
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/bugprone/union-ptr-cast-to-non-union-member-ptr.html
-class UnionPtrCastToNonUnionMemberPtrCheck : public ClangTidyCheck {
+class UnionPtrCastToNonUnionMemberTypePtrCheck : public ClangTidyCheck {
 public:
-  UnionPtrCastToNonUnionMemberPtrCheck(StringRef Name, ClangTidyContext *Context)
+  UnionPtrCastToNonUnionMemberTypePtrCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context) {}
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;

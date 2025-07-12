@@ -1,4 +1,4 @@
-//===--- UnionPtrCastToNonUnionMemberPtrCheck.cpp - clang-tidy ------------===//
+//===--- UnionPtrCastToNonUnionMemberTypePtrCheck.cpp - clang-tidy ------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,18 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "UnionPtrCastToNonUnionMemberPtrCheck.h"
+#include "UnionPtrCastToNonUnionMemberTypePtrCheck.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
 using namespace clang::ast_matchers;
 
 namespace clang::tidy::bugprone {
 
-void UnionPtrCastToNonUnionMemberPtrCheck::registerMatchers(MatchFinder *Finder) {
+void UnionPtrCastToNonUnionMemberTypePtrCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(cStyleCastExpr().bind("x"), this);
 }
 
-void UnionPtrCastToNonUnionMemberPtrCheck::check(const MatchFinder::MatchResult &Result) {
+void UnionPtrCastToNonUnionMemberTypePtrCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *cast = Result.Nodes.getNodeAs<CStyleCastExpr>("x");
 
   if (const Type *type_casted_to = cast->getTypeAsWritten().getTypePtrOrNull())

@@ -94,7 +94,7 @@ add_clang_library(clangTidyBugproneModule STATIC
   UndelegatedConstructorCheck.cpp
   UnhandledExceptionAtNewCheck.cpp
   UnhandledSelfAssignmentCheck.cpp
-  UnionPtrCastToNonUnionMemberPtrCheck.cpp
+  UnionPtrCastToNonUnionMemberTypePtrCheck.cpp
   UniquePtrArrayMismatchCheck.cpp
   UnsafeFunctionsCheck.cpp
   UnusedLocalNonTrivialVariableCheck.cpp
