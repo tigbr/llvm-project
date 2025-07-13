@@ -13,13 +13,27 @@ using namespace clang::ast_matchers;
 
 namespace clang::tidy::bugprone {
 
+static const struct {
+	std::string_view Union = "union";
+	std::string_view Cast = "cast";
+} BindNames;
+
 void UnionPtrCastToNonUnionMemberTypePtrCheck::registerMatchers(MatchFinder *Finder) {
-  Finder->addMatcher(cStyleCastExpr().bind("x"), this);
+  // Finder->addMatcher(cStyleCastExpr().bind("x"), this);
+  // Finder->addMatcher(cStyleCastExpr(hasSourceExpression(hasType(pointerType(pointee(recordType(hasDeclaration(recordDecl(isUnion()).bind(BindNames.Union)))))))).bind(BindNames.Cast), this);
+  auto isPointerToUnion = hasType(pointerType(pointee(hasUnqualifiedDesugaredType(recordType(hasDeclaration(recordDecl(isUnion()).bind(BindNames.Union)))))));
+  Finder->addMatcher(cStyleCastExpr(hasSourceExpression(ignoringParenImpCasts(isPointerToUnion))).bind(BindNames.Cast), this);
 }
 
 void UnionPtrCastToNonUnionMemberTypePtrCheck::check(const MatchFinder::MatchResult &Result) {
-  const auto *cast = Result.Nodes.getNodeAs<CStyleCastExpr>("x");
+  const auto *Cast  = Result.Nodes.getNodeAs<CStyleCastExpr>(BindNames.Cast);
+  const auto *Union = Result.Nodes.getNodeAs<RecordDecl>(BindNames.Union);
 
+  if (Cast && Union) {
+	Cast->dump();
+  }
+
+  if (const auto *cast = Result.Nodes.getNodeAs<CStyleCastExpr>("x"))
   if (const Type *type_casted_to = cast->getTypeAsWritten().getTypePtrOrNull())
   if (type_casted_to->isPointerType())
   if (const PointerType *pointer_type_casted_to = llvm::dyn_cast<PointerType>(type_casted_to)) // TODO: Get canonical type, it might be behind possible typedef and using statements

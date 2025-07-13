@@ -15,4 +15,5 @@ void f() {
     float *f = (float*) &u;
     char  *c = (char*)  &u;
     void  *v = (void*)  &u;
+    void  *v2 = &u;
 }
