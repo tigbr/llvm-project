@@ -1,4 +1,4 @@
-// RUN: %check_clang_tidy %s bugprone-union-ptr-cast-to-non-union-member-ptr %t
+// RUN: %check_clang_tidy %s bugprone-union-ptr-cast-to-non-union-member-type-ptr %t
 
 typedef long **lpp;
 
