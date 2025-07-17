@@ -14,8 +14,10 @@
 namespace clang::tidy::bugprone {
 
 static const struct {
-	std::string_view AllowCastToVoidPtr = "AllowCastToVoidPtr";
-	std::string_view AllowCastToCharPtr = "AllowCastToCharPtr";
+	std::string_view AllowCastToPtrToVoid = "AllowCastToPtrToVoid";
+	std::string_view AllowCastToPtrToChar = "AllowCastToPtrToChar";
+	std::string_view AllowCastToTypedefedPtr = "AllowCastToTypedefedPtr";
+	std::string_view AllowCastToPtrToTypedefed = "AllowCastToPtrToTypedefed";
 } OptionNames;
 
 static const struct {
@@ -28,13 +30,17 @@ static const struct {
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/bugprone/union-ptr-cast-to-non-union-member-ptr.html
 class UnionPtrCastToNonUnionMemberTypePtrCheck : public ClangTidyCheck {
-  const bool AllowCastToVoidPtr;
-  const bool AllowCastToCharPtr;
+  const bool AllowCastToPtrToVoid;
+  const bool AllowCastToPtrToChar;
+  const bool AllowCastToTypedefedPtr;
+  const bool AllowCastToPtrToTypedefed;
 public:
   UnionPtrCastToNonUnionMemberTypePtrCheck(StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      AllowCastToVoidPtr(Options.get(OptionNames.AllowCastToVoidPtr, false)),
-      AllowCastToCharPtr(Options.get(OptionNames.AllowCastToCharPtr, false)) { }
+      AllowCastToPtrToVoid(Options.get(OptionNames.AllowCastToPtrToVoid, false)),
+      AllowCastToPtrToChar(Options.get(OptionNames.AllowCastToPtrToChar, false)),
+      AllowCastToTypedefedPtr(Options.get(OptionNames.AllowCastToTypedefedPtr, false)),
+      AllowCastToPtrToTypedefed(Options.get(OptionNames.AllowCastToPtrToTypedefed, false)) { }
 
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;

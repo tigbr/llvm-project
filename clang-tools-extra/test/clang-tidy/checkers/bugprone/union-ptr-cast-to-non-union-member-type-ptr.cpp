@@ -2,6 +2,8 @@
 
 typedef short *short_ptr;
 
+typedef float f32;
+
 void f() {
     union {
         short s;
@@ -23,6 +25,8 @@ void f() {
 
     // CHECK-MESSAGES: :[[@LINE+1]]:16: warning: bad
     short_ptr ptr = (short_ptr) &u;
+
+    float *f = (float*) &u;
 
     void *v2 = &u;
 

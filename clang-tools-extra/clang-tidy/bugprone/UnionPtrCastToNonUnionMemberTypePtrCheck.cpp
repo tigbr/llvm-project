@@ -26,11 +26,12 @@ void UnionPtrCastToNonUnionMemberTypePtrCheck::check(const MatchFinder::MatchRes
     Cast = Result.Nodes.getNodeAs<ImplicitCastExpr>(BindNames.Cast);
   }
 
+  QualType pointee_qualtype;
+
   if (const Type *cast_target_type = Cast ? Cast->getType().getTypePtrOrNull() : nullptr)
   if (cast_target_type->isPointerType())
   if (const PointerType *pointer_type_casted_to = llvm::dyn_cast<PointerType>(cast_target_type)) {
     QualType pointee_qualtype = pointer_type_casted_to->getPointeeType();
-    const Type *pointee_type = pointee_qualtype.getTypePtr();
 
     bool found = false;
     for (auto it = Union->field_begin(); it != Union->field_end(); it++) {
@@ -41,9 +42,27 @@ void UnionPtrCastToNonUnionMemberTypePtrCheck::check(const MatchFinder::MatchRes
     }
 
     if (!found) {
-      if (const BuiltinType *built_in_type = llvm::dyn_cast<BuiltinType>(pointee_type)) {
-        if (AllowCastToVoidPtr && built_in_type->isVoidType()) return;
-        if (AllowCastToCharPtr && built_in_type->isCharType()) return;
+      if (const BuiltinType *built_in_type = llvm::dyn_cast<BuiltinType>(pointee_qualtype.getTypePtr())) {
+        if (AllowCastToPtrToVoid && built_in_type->isVoidType()) return;
+        if (AllowCastToPtrToChar && built_in_type->isCharType()) return;
+      }
+      diag(Cast->getBeginLoc(), "bad");
+    }
+  } else if (const ElaboratedType *elaborated = llvm::dyn_cast<ElaboratedType>(cast_target_type)) {
+    QualType pointee_qualtype = elaborated->getNamedType();
+
+    bool found = false;
+    for (auto it = Union->field_begin(); it != Union->field_end(); it++) {
+      if (pointee_qualtype == it->getType()) {
+         found = true;
+         break;
+      }
+    }
+
+    if (!found) {
+      if (const BuiltinType *built_in_type = llvm::dyn_cast<BuiltinType>(pointee_qualtype.getTypePtr())) {
+        if (AllowCastToPtrToVoid && built_in_type->isVoidType()) return;
+        if (AllowCastToPtrToChar && built_in_type->isCharType()) return;
       }
       diag(Cast->getBeginLoc(), "bad");
     }
