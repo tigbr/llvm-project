@@ -2,33 +2,25 @@
 
 typedef short *short_ptr;
 
-typedef float f32;
+union {
+    short s;
+    float f;
+    short_ptr ptr;
+} u;
 
-void f() {
-    union {
-        short s;
-        float f;
-    } u;
-
+void always_allowed() {
     short *s = (short*) &u;
     float *f = (float*) &u;
-
-    // Pointer to union is cast to pointer with pointee type which is not contained in the union!
-    // CHECK-MESSAGES: :[[@LINE+1]]:16: warning: bad
-    long  *l = (long*)  &u;
-
-    // CHECK-MESSAGES: :[[@LINE+1]]:16: warning: bad
-    char  *c = (char*)  &u;
-
-    // CHECK-MESSAGES: :[[@LINE+1]]:16: warning: bad
-    void  *v = (void*)  &u;
-
-    // CHECK-MESSAGES: :[[@LINE+1]]:16: warning: bad
-    short_ptr ptr = (short_ptr) &u;
-
-    float *f = (float*) &u;
-
-    void *v2 = &u;
-
-    char *c2 = &u;
 }
+
+// Pointer to union is cast to pointer with a pointee type which is not contained in the union!
+void always_reported() {
+    long *l = (long*) &u;           // CHECK-MESSAGES: :[[@LINE]]:15: warning: bad
+    short_ptr ptr = (short_ptr) &u; // CHECK-MESSAGES: :[[@LINE]]:21: warning: bad
+}
+
+void default_options() {
+    char *c = (char*) &u;
+    void *v = (void*) &u;
+}
+

@@ -20,10 +20,8 @@ static const struct {
 	std::string_view AllowCastToPtrToTypedefed = "AllowCastToPtrToTypedefed";
 } OptionNames;
 
-static const struct {
-	std::string_view Union = "union";
-	std::string_view Cast = "cast";
-} BindNames;
+static const std::string_view UnionBindName = "union";
+static const std::string_view CastBindName = "cast";
 
 /// FIXME: Write a short description.
 ///
@@ -42,8 +40,10 @@ public:
       AllowCastToTypedefedPtr(Options.get(OptionNames.AllowCastToTypedefedPtr, false)),
       AllowCastToPtrToTypedefed(Options.get(OptionNames.AllowCastToPtrToTypedefed, false)) { }
 
+  bool isLanguageVersionSupported(const LangOptions &LangOpts) const override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
+  void process(const RecordDecl *Union, const CastExpr *Cast, QualType pointee_qualtype);
 };
 
 } // namespace clang::tidy::bugprone
