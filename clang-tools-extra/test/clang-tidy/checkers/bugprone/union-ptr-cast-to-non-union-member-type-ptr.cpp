@@ -1,26 +1,37 @@
 // RUN: %check_clang_tidy %s bugprone-union-ptr-cast-to-non-union-member-type-ptr %t
 
-typedef short *short_ptr;
+typedef short *short_ptr_typedef;
+using short_ptr_using = short*;
 
 union {
     short s;
     float f;
-    short_ptr ptr;
+    short_ptr_typedef ptr1;
+    short_ptr_using ptr2;
 } u;
 
 void always_allowed() {
-    short *s = (short*) &u;
-    float *f = (float*) &u;
+    (short*) &u;
+    (float*) &u;
 }
 
-// Pointer to union is cast to pointer with a pointee type which is not contained in the union!
-void always_reported() {
-    long *l = (long*) &u;           // CHECK-MESSAGES: :[[@LINE]]:15: warning: bad
-    short_ptr ptr = (short_ptr) &u; // CHECK-MESSAGES: :[[@LINE]]:21: warning: bad
+void option_dependent_defaults() {
+    (char*) &u;
+    (void*) &u;
+    void *v = &u;
 }
 
-void default_options() {
-    char *c = (char*) &u;
-    void *v = (void*) &u;
+void bad_cast_with_known_union_definition(union unknown *ptr_to_unknown) {
+    (long*) &u;             // CHECK-MESSAGES: :[[@LINE]]:5: warning: bad
+    (short_ptr_typedef) &u; // CHECK-MESSAGES: :[[@LINE]]:5: warning: bad
+    (short_ptr_using)   &u; // CHECK-MESSAGES: :[[@LINE]]:5: warning: bad
 }
 
+void bad_cast_with_unknown_union_definition(union unknown *ptr_to_unknown) {
+    (char*)   ptr_to_unknown; // CHECK-MESSAGES: :[[@LINE]]:15: warning: bad
+    (short*)  ptr_to_unknown; // CHECK-MESSAGES: :[[@LINE]]:15: warning: bad
+    (int*)    ptr_to_unknown; // CHECK-MESSAGES: :[[@LINE]]:15: warning: bad
+    (long*)   ptr_to_unknown; // CHECK-MESSAGES: :[[@LINE]]:15: warning: bad
+    (float*)  ptr_to_unknown; // CHECK-MESSAGES: :[[@LINE]]:15: warning: bad
+    (double*) ptr_to_unknown; // CHECK-MESSAGES: :[[@LINE]]:15: warning: bad
+}

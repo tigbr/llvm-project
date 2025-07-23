@@ -13,15 +13,10 @@
 
 namespace clang::tidy::bugprone {
 
-static const struct {
-	std::string_view AllowCastToPtrToVoid = "AllowCastToPtrToVoid";
-	std::string_view AllowCastToPtrToChar = "AllowCastToPtrToChar";
-	std::string_view AllowCastToTypedefedPtr = "AllowCastToTypedefedPtr";
-	std::string_view AllowCastToPtrToTypedefed = "AllowCastToPtrToTypedefed";
-} OptionNames;
-
-static const std::string_view UnionBindName = "union";
-static const std::string_view CastBindName = "cast";
+static constexpr llvm::StringLiteral AllowCastToPtrToVoidOptionName = "AllowCastToPtrToVoid";
+static constexpr llvm::StringLiteral AllowCastToPtrToCharOptionName = "AllowCastToPtrToChar";
+static constexpr llvm::StringLiteral UnionBindName = "union";
+static constexpr llvm::StringLiteral CastBindName = "cast";
 
 /// FIXME: Write a short description.
 ///
@@ -30,15 +25,11 @@ static const std::string_view CastBindName = "cast";
 class UnionPtrCastToNonUnionMemberTypePtrCheck : public ClangTidyCheck {
   const bool AllowCastToPtrToVoid;
   const bool AllowCastToPtrToChar;
-  const bool AllowCastToTypedefedPtr;
-  const bool AllowCastToPtrToTypedefed;
 public:
   UnionPtrCastToNonUnionMemberTypePtrCheck(StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      AllowCastToPtrToVoid(Options.get(OptionNames.AllowCastToPtrToVoid, false)),
-      AllowCastToPtrToChar(Options.get(OptionNames.AllowCastToPtrToChar, false)),
-      AllowCastToTypedefedPtr(Options.get(OptionNames.AllowCastToTypedefedPtr, false)),
-      AllowCastToPtrToTypedefed(Options.get(OptionNames.AllowCastToPtrToTypedefed, false)) { }
+      AllowCastToPtrToVoid(Options.get(AllowCastToPtrToVoidOptionName, true)),
+      AllowCastToPtrToChar(Options.get(AllowCastToPtrToCharOptionName, true)) { }
 
   bool isLanguageVersionSupported(const LangOptions &LangOpts) const override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
