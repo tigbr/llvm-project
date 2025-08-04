@@ -1,4 +1,4 @@
-// RUN: %check_clang_tidy %s bugprone-union-ptr-cast-to-non-union-member-type-ptr %t
+// RUN: %check_clang_tidy -std=c++98-or-later %s bugprone-union-ptr-cast-to-non-union-member-type-ptr %t
 
 typedef short *short_ptr_typedef;
 using short_ptr_using = short*;

@@ -13,11 +13,6 @@
 
 namespace clang::tidy::bugprone {
 
-static constexpr llvm::StringLiteral AllowCastToPtrToVoidOptionName = "AllowCastToPtrToVoid";
-static constexpr llvm::StringLiteral AllowCastToPtrToCharOptionName = "AllowCastToPtrToChar";
-static constexpr llvm::StringLiteral UnionBindName = "union";
-static constexpr llvm::StringLiteral CastBindName = "cast";
-
 /// FIXME: Write a short description.
 ///
 /// For the user-facing documentation see:
