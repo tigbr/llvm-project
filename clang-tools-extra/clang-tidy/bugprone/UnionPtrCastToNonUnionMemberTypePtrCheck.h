@@ -13,11 +13,6 @@
 
 namespace clang::tidy::bugprone {
 
-static constexpr llvm::StringLiteral AllowCastToPtrToVoidOptionName = "AllowCastToPtrToVoid";
-static constexpr llvm::StringLiteral AllowCastToPtrToCharOptionName = "AllowCastToPtrToChar";
-static constexpr llvm::StringLiteral UnionBindName = "union";
-static constexpr llvm::StringLiteral CastBindName = "cast";
-
 /// FIXME: Write a short description.
 ///
 /// For the user-facing documentation see:
@@ -26,11 +21,7 @@ class UnionPtrCastToNonUnionMemberTypePtrCheck : public ClangTidyCheck {
   const bool AllowCastToPtrToVoid;
   const bool AllowCastToPtrToChar;
 public:
-  UnionPtrCastToNonUnionMemberTypePtrCheck(StringRef Name, ClangTidyContext *Context)
-    : ClangTidyCheck(Name, Context),
-      AllowCastToPtrToVoid(Options.get(AllowCastToPtrToVoidOptionName, true)),
-      AllowCastToPtrToChar(Options.get(AllowCastToPtrToCharOptionName, true)) { }
-
+  UnionPtrCastToNonUnionMemberTypePtrCheck(StringRef Name, ClangTidyContext *Context);
   bool isLanguageVersionSupported(const LangOptions &LangOpts) const override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;

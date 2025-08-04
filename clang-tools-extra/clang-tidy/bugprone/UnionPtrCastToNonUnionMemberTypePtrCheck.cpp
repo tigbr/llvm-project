@@ -13,24 +13,35 @@ using namespace clang::ast_matchers;
 
 namespace clang::tidy::bugprone {
 
+static constexpr llvm::StringLiteral AllowCastToPtrToVoidOptionName = "AllowCastToPtrToVoid";
+static constexpr llvm::StringLiteral AllowCastToPtrToCharOptionName = "AllowCastToPtrToChar";
+static constexpr llvm::StringLiteral UnionBindName = "union";
+static constexpr llvm::StringLiteral CastBindName = "cast";
+
+UnionPtrCastToNonUnionMemberTypePtrCheck::UnionPtrCastToNonUnionMemberTypePtrCheck(StringRef Name, ClangTidyContext *Context) : ClangTidyCheck(Name, Context),
+      AllowCastToPtrToVoid(Options.get(AllowCastToPtrToVoidOptionName, true)),
+      AllowCastToPtrToChar(Options.get(AllowCastToPtrToCharOptionName, true)) { }
+
 bool UnionPtrCastToNonUnionMemberTypePtrCheck::isLanguageVersionSupported(const LangOptions &LangOpts) const {
   return !LangOpts.ObjC;
 }
 
 void UnionPtrCastToNonUnionMemberTypePtrCheck::registerMatchers(MatchFinder *Finder) {
   auto isPointerToUnion = hasSourceExpression(hasType(pointerType(pointee(hasUnqualifiedDesugaredType(recordType(hasDeclaration(recordDecl(isUnion()).bind(UnionBindName))))))));
-
-  // Unless is used here, because in some expressions (e.g. (void*) &my_union)
-  // an implicit cast is generated between the explicit cast and the address of expression.
-  // Cases like those would be found by both matchers and thus processed twice.
-  // This is problematic when both generate a warning.
-  Finder->addMatcher(cStyleCastExpr(isPointerToUnion, unless(hasSourceExpression(implicitCastExpr()))).bind(CastBindName), this);
   Finder->addMatcher(implicitCastExpr(isPointerToUnion).bind(CastBindName), this);
+
+  // Ignore expressions where there is an extra implicit cast between the
+  // explicit cast and the pointer expression (e.g. (void*) &my_union).
+  // These cases should be found by the matcher for implicit casts.
+  Finder->addMatcher(cStyleCastExpr(isPointerToUnion, unless(hasSourceExpression(implicitCastExpr()))).bind(CastBindName), this);
 }
 
 void UnionPtrCastToNonUnionMemberTypePtrCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Union = Result.Nodes.getNodeAs<RecordDecl>(UnionBindName);
+  assert(Union && "Node for union declaration is not returned to check!");
+
   const CastExpr *Cast = Result.Nodes.getNodeAs<CastExpr>(CastBindName);
+  assert(Cast && "Node for cast expression is not returned to check!");
 
   const Type *cast_target_type = Cast->getType().getTypePtrOrNull();
   if (cast_target_type && cast_target_type->isPointerType()) {
@@ -51,9 +62,8 @@ void UnionPtrCastToNonUnionMemberTypePtrCheck::process(const RecordDecl *Union, 
     if (AllowCastToPtrToVoid && BT->isVoidType()) return;
     if (AllowCastToPtrToChar && BT->isCharType()) return;
   }
-  
-  // There is no union member with the same type as the target pointers pointee type
-  diag(Cast->getBeginLoc(), "bad");
+
+  diag(Cast->getBeginLoc(), "the union pointed to by this expression has no field with the type '%0'") << pointee_qualtype.getAsString();
 }
 
 } // namespace clang::tidy::bugprone

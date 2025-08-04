@@ -1,13 +1,11 @@
-// RUN: %check_clang_tidy -std=c++98-or-later %s bugprone-union-ptr-cast-to-non-union-member-type-ptr %t
+// RUN: %check_clang_tidy %s bugprone-union-ptr-cast-to-non-union-member-type-ptr %t
 
 typedef short *short_ptr_typedef;
-using short_ptr_using = short*;
 
 union {
     short s;
     float f;
     short_ptr_typedef ptr1;
-    short_ptr_using ptr2;
 } u;
 
 void always_allowed() {
@@ -22,9 +20,8 @@ void option_dependent_default_behaviors() {
 }
 
 void bad_cast_with_known_union_definition() {
-    (long*) &u;             // CHECK-MESSAGES: :[[@LINE]]:5: warning: the union pointed to by '&u' has no field with the type 'long'
+    (long*) &u;             // CHECK-MESSAGES: :[[@LINE]]:5: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
     (short_ptr_typedef) &u; // CHECK-MESSAGES: :[[@LINE]]:5: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
-    (short_ptr_using)   &u; // CHECK-MESSAGES: :[[@LINE]]:5: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
 }
 
 union Unknown;

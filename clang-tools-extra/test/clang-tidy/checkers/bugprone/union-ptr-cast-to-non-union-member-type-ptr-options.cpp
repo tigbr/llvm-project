@@ -10,7 +10,7 @@ union {
 } u;
 
 void option_dependent_defaults() {
-    (char*) &u;   // CHECK-MESSAGES: :[[@LINE]]:5: warning: bad
-    (void*) &u;   // CHECK-MESSAGES: :[[@LINE]]:13: warning: bad
-    void *v = &u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: bad
+    (char*) &u;   // CHECK-MESSAGES: :[[@LINE]]:5: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
+    (void*) &u;   // CHECK-MESSAGES: :[[@LINE]]:13: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
+    void *v = &u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
 }
