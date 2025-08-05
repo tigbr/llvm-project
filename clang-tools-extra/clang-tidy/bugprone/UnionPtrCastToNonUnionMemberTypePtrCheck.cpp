@@ -44,7 +44,7 @@ void UnionPtrCastToNonUnionMemberTypePtrCheck::check(const MatchFinder::MatchRes
   assert(Cast && "Node for cast expression is not returned to check!");
 
   const Type *cast_target_type = Cast->getType().getTypePtrOrNull();
-  if (cast_target_type && cast_target_type->isPointerType()) {
+  if (cast_target_type && cast_target_type->isPointerType() && Cast->getCastKind() == CK_BitCast) {
     if (const PointerType *pointer_type_casted_to = llvm::dyn_cast<PointerType>(cast_target_type)) {
       process(Union, Cast, pointer_type_casted_to->getPointeeType());
     } else if (const ElaboratedType *elaborated = llvm::dyn_cast<ElaboratedType>(cast_target_type)) {
