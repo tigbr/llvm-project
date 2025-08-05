@@ -25,7 +25,7 @@ public:
   bool isLanguageVersionSupported(const LangOptions &LangOpts) const override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
-  void process(const RecordDecl *Union, const CastExpr *Cast, QualType pointee_qualtype);
+  void AnalyzeCast(const RecordDecl *Union, const Expr *SubExpression, QualType PointeeQualType);
 };
 
 } // namespace clang::tidy::bugprone

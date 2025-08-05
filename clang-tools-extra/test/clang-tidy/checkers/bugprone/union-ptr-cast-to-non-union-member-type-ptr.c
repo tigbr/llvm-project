@@ -14,29 +14,35 @@ void always_allowed(union MyUnion *u) {
 }
 
 void option_dependent_default_behaviors(union MyUnion *u) {
-    (char*) u;
     (void*) u;
+    (char*) u;
     void *v = u;
+    char *c = u;
 }
 
 void bad_implicit_casts(union MyUnion *u) {
-    // short  *p1 = u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
-    // int    *p2 = u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
-    // long   *p3 = u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
-    // float  *p4 = u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
-    // double *p5 = u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
+    int    *p1 = u; // CHECK-MESSAGES: :[[@LINE]]:18: warning: the union pointed to by this expression has no field with the type 'int'
+    long   *p2 = u; // CHECK-MESSAGES: :[[@LINE]]:18: warning: the union pointed to by this expression has no field with the type 'long'
+    double *p3 = u; // CHECK-MESSAGES: :[[@LINE]]:18: warning: the union pointed to by this expression has no field with the type 'double'
+    short_ptr_typedef p4 = u; // CHECK-MESSAGES: :[[@LINE]]:28: warning: the union pointed to by this expression has no field with the type 'short_ptr_typedef'
 }
 
 void bad_cstyle_casts(union MyUnion *u) {
-    // (long*) &u;             // CHECK-MESSAGES: :[[@LINE]]:5: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
-    // (short_ptr_typedef) &u; // CHECK-MESSAGES: :[[@LINE]]:5: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
+    (long*) u;             // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'long'
+    (short_ptr_typedef) u; // CHECK-MESSAGES: :[[@LINE]]:25: warning: the union pointed to by this expression has no field with the type 'short_ptr_typedef'
 }
 
 void bad_cast_with_unknown_union_definition(union Unknown *u) {
-    // (char*)   u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
-    // (short*)  u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
-    // (int*)    u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
-    // (long*)   u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
-    // (float*)  u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
-    // (double*) u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
+    (char*)   u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: the union pointed to by this expression has no field with the type 'char'
+    (short*)  u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: the union pointed to by this expression has no field with the type 'short'
+    (int*)    u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: the union pointed to by this expression has no field with the type 'int'
+    (long*)   u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: the union pointed to by this expression has no field with the type 'long'
+    (float*)  u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: the union pointed to by this expression has no field with the type 'float'
+    (double*) u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: the union pointed to by this expression has no field with the type 'double'
+}
+
+void irrelevant_casts(long i) {
+	unsigned long ul = i;
+	(unsigned long) i;
+	void *v = (void*) i;
 }

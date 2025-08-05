@@ -27,43 +27,36 @@ bool UnionPtrCastToNonUnionMemberTypePtrCheck::isLanguageVersionSupported(const 
 }
 
 void UnionPtrCastToNonUnionMemberTypePtrCheck::registerMatchers(MatchFinder *Finder) {
-  auto isPointerToUnion = hasSourceExpression(hasType(pointerType(pointee(hasUnqualifiedDesugaredType(recordType(hasDeclaration(recordDecl(isUnion()).bind(UnionBindName))))))));
-  Finder->addMatcher(implicitCastExpr(isPointerToUnion).bind(CastBindName), this);
-
-  // Ignore expressions where there is an extra implicit cast between the
-  // explicit cast and the pointer expression (e.g. (void*) &my_union).
-  // These cases should be found by the matcher for implicit casts.
-  Finder->addMatcher(cStyleCastExpr(isPointerToUnion, unless(hasSourceExpression(implicitCastExpr()))).bind(CastBindName), this);
+  auto hasPointerToUnionSourceExpr = hasSourceExpression(hasType(pointerType(pointee(hasUnqualifiedDesugaredType(recordType(hasDeclaration(recordDecl(isUnion()).bind(UnionBindName))))))));
+  auto isRelevantCastKindAndSourceExpr = allOf(hasCastKind(CK_BitCast), hasPointerToUnionSourceExpr);
+  Finder->addMatcher(implicitCastExpr(hasImplicitDestinationType(isAnyPointer()), isRelevantCastKindAndSourceExpr).bind(CastBindName), this);
+  Finder->addMatcher(cStyleCastExpr(hasDestinationType(isAnyPointer()), isRelevantCastKindAndSourceExpr).bind(CastBindName), this);
 }
 
 void UnionPtrCastToNonUnionMemberTypePtrCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Union = Result.Nodes.getNodeAs<RecordDecl>(UnionBindName);
-  assert(Union && "Node for union declaration is not returned to check!");
-
-  const CastExpr *Cast = Result.Nodes.getNodeAs<CastExpr>(CastBindName);
-  assert(Cast && "Node for cast expression is not returned to check!");
-
-  const Type *cast_target_type = Cast->getType().getTypePtrOrNull();
-  if (cast_target_type && cast_target_type->isPointerType() && Cast->getCastKind() == CK_BitCast) {
-    if (const PointerType *pointer_type_casted_to = llvm::dyn_cast<PointerType>(cast_target_type)) {
-      process(Union, Cast, pointer_type_casted_to->getPointeeType());
-    } else if (const ElaboratedType *elaborated = llvm::dyn_cast<ElaboratedType>(cast_target_type)) {
-      process(Union, Cast, elaborated->getNamedType());
-    }
+  const auto *Cast = Result.Nodes.getNodeAs<CastExpr>(CastBindName);
+  assert(Union && "Node for union declaration is not returned in MatchResult!");
+  assert(Cast && "Node for cast expression is not returned in MatchResult!");
+  const Type *CastTargetType = Cast->getType().getTypePtrOrNull();
+  if (const auto *PointerTypeCastedTo = llvm::dyn_cast<PointerType>(CastTargetType)) {
+    AnalyzeCast(Union, Cast->getSubExpr(), PointerTypeCastedTo->getPointeeType());
+  } else if (const auto *elaborated = llvm::dyn_cast<ElaboratedType>(CastTargetType)) {
+    AnalyzeCast(Union, Cast->getSubExpr(), elaborated->getNamedType());
   }
 }
 
-void UnionPtrCastToNonUnionMemberTypePtrCheck::process(const RecordDecl *Union, const CastExpr *Cast, QualType pointee_qualtype) {
-  for (auto it = Union->field_begin(); it != Union->field_end(); it++) {
-    if (pointee_qualtype == it->getType()) return;
+void UnionPtrCastToNonUnionMemberTypePtrCheck::AnalyzeCast(const RecordDecl *Union, const Expr *SubExpression, QualType PointeeQualType) {
+  if (Union->isCompleteDefinition()) {
+    for (auto it = Union->field_begin(); it != Union->field_end(); it++) {
+      if (PointeeQualType == it->getType()) return;
+    }
+    if (const auto *BT = llvm::dyn_cast<BuiltinType>(PointeeQualType.getTypePtr())) {
+      if (AllowCastToPtrToVoid && BT->isVoidType()) return;
+      if (AllowCastToPtrToChar && BT->isCharType()) return;
+    }
   }
-
-  if (const BuiltinType *BT = llvm::dyn_cast<BuiltinType>(pointee_qualtype.getTypePtr())) {
-    if (AllowCastToPtrToVoid && BT->isVoidType()) return;
-    if (AllowCastToPtrToChar && BT->isCharType()) return;
-  }
-
-  diag(Cast->getBeginLoc(), "the union pointed to by this expression has no field with the type '%0'") << pointee_qualtype.getAsString();
+  diag(SubExpression->getBeginLoc(), "the union pointed to by this expression has no field with the type '%0'") << PointeeQualType.getAsString();
 }
 
 } // namespace clang::tidy::bugprone

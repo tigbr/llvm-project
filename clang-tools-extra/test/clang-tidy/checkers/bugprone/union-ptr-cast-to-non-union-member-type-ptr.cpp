@@ -16,25 +16,32 @@ void always_allowed(union MyUnion *u) {
 }
 
 void option_dependent_default_behaviors(union MyUnion *u) {
-    (char*) u;
     (void*) u;
+    (char*) u;
     void *v = u;
-}
 
-// Implicit casts like (short *p = &my_union;) are compile-time errors in C++
-// For this reason these cases are present only in the C language test file.
+    // Implicit casts like these are compile-time errors in C++
+    // For this reason they are tested only in the C file.
+    // char *c = u;
+}
 
 void bad_cast_with_known_union_definition(union MyUnion *u) {
-    (long*) u;             // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by '&u' has no field with the type 'long'
-    // (short_ptr_typedef) u; // CHECK-MESSAGES: :[[@LINE]]:25: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
-    // (short_ptr_using)   u; // CHECK-MESSAGES: :[[@LINE]]:25: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
+    (long*) u;             // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'long'
+    (short_ptr_typedef) u; // CHECK-MESSAGES: :[[@LINE]]:25: warning: the union pointed to by this expression has no field with the type 'short_ptr_typedef'
+    (short_ptr_using)   u; // CHECK-MESSAGES: :[[@LINE]]:25: warning: the union pointed to by this expression has no field with the type 'short_ptr_using'
 }
 
-void bad_cast_with_unknown_union_definition(union Unknown *a) {
-    // (char*)   a; // CHECK-MESSAGES: :[[@LINE]]:15: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
-    // (short*)  a; // CHECK-MESSAGES: :[[@LINE]]:15: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
-    // (int*)    a; // CHECK-MESSAGES: :[[@LINE]]:15: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
-    // (long*)   a; // CHECK-MESSAGES: :[[@LINE]]:15: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
-    // (float*)  a; // CHECK-MESSAGES: :[[@LINE]]:15: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
-    // (double*) a; // CHECK-MESSAGES: :[[@LINE]]:15: warning: there is no member in this union with the same type as the cast's target pointer's pointee type
+void bad_cast_with_unknown_union_definition(union Unknown *u) {
+    (char*)   u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: the union pointed to by this expression has no field with the type 'char'
+    (short*)  u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: the union pointed to by this expression has no field with the type 'short'
+    (int*)    u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: the union pointed to by this expression has no field with the type 'int'
+    (long*)   u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: the union pointed to by this expression has no field with the type 'long'
+    (float*)  u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: the union pointed to by this expression has no field with the type 'float'
+    (double*) u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: the union pointed to by this expression has no field with the type 'double'
+}
+
+void irrelevant_casts(long i) {
+	unsigned long ul = i;
+	(unsigned long) i;
+	void *v = (void*) i;
 }
