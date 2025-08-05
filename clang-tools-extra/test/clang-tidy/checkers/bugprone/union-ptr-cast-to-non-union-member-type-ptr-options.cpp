@@ -1,7 +1,7 @@
 // RUN: %check_clang_tidy -std=c++98-or-later %s bugprone-union-ptr-cast-to-non-union-member-type-ptr %t \
 // RUN:   -config='{CheckOptions: { \
-// RUN:     bugprone-union-ptr-cast-to-non-union-member-type-ptr.AllowCastToPtrToChar: false, \
-// RUN:     bugprone-union-ptr-cast-to-non-union-member-type-ptr.AllowCastToPtrToVoid: false, \
+// RUN:     bugprone-union-ptr-cast-to-non-union-member-type-ptr.AlwaysAllowCastToPtrToChar: false, \
+// RUN:     bugprone-union-ptr-cast-to-non-union-member-type-ptr.AlwaysAllowCastToPtrToVoid: false, \
 // RUN:  }}' --
 
 union MyUnion {

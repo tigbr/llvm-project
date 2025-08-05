@@ -13,14 +13,14 @@ using namespace clang::ast_matchers;
 
 namespace clang::tidy::bugprone {
 
-static constexpr llvm::StringLiteral AllowCastToPtrToVoidOptionName = "AllowCastToPtrToVoid";
-static constexpr llvm::StringLiteral AllowCastToPtrToCharOptionName = "AllowCastToPtrToChar";
+static constexpr llvm::StringLiteral AlwaysAllowCastToPtrToVoidOptionName = "AlwaysAllowCastToPtrToVoid";
+static constexpr llvm::StringLiteral AlwaysAllowCastToPtrToCharOptionName = "AlwaysAllowCastToPtrToChar";
 static constexpr llvm::StringLiteral UnionBindName = "union";
 static constexpr llvm::StringLiteral CastBindName = "cast";
 
 UnionPtrCastToNonUnionMemberTypePtrCheck::UnionPtrCastToNonUnionMemberTypePtrCheck(StringRef Name, ClangTidyContext *Context) : ClangTidyCheck(Name, Context),
-      AllowCastToPtrToVoid(Options.get(AllowCastToPtrToVoidOptionName, true)),
-      AllowCastToPtrToChar(Options.get(AllowCastToPtrToCharOptionName, true)) { }
+      AlwaysAllowCastToPtrToVoid(Options.get(AlwaysAllowCastToPtrToVoidOptionName, true)),
+      AlwaysAllowCastToPtrToChar(Options.get(AlwaysAllowCastToPtrToCharOptionName, true)) { }
 
 bool UnionPtrCastToNonUnionMemberTypePtrCheck::isLanguageVersionSupported(const LangOptions &LangOpts) const {
   return !LangOpts.ObjC;
@@ -52,8 +52,8 @@ void UnionPtrCastToNonUnionMemberTypePtrCheck::AnalyzeCast(const RecordDecl *Uni
       if (PointeeQualType == it->getType()) return;
     }
     if (const auto *BT = llvm::dyn_cast<BuiltinType>(PointeeQualType.getTypePtr())) {
-      if (AllowCastToPtrToVoid && BT->isVoidType()) return;
-      if (AllowCastToPtrToChar && BT->isCharType()) return;
+      if (AlwaysAllowCastToPtrToVoid && BT->isVoidType()) return;
+      if (AlwaysAllowCastToPtrToChar && BT->isCharType()) return;
     }
   }
   diag(SubExpression->getBeginLoc(), "the union pointed to by this expression has no field with the type '%0'") << PointeeQualType.getAsString();

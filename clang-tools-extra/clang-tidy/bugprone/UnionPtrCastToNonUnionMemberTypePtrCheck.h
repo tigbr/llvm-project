@@ -18,8 +18,8 @@ namespace clang::tidy::bugprone {
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/bugprone/union-ptr-cast-to-non-union-member-ptr.html
 class UnionPtrCastToNonUnionMemberTypePtrCheck : public ClangTidyCheck {
-  const bool AllowCastToPtrToVoid;
-  const bool AllowCastToPtrToChar;
+  const bool AlwaysAllowCastToPtrToVoid;
+  const bool AlwaysAllowCastToPtrToChar;
 public:
   UnionPtrCastToNonUnionMemberTypePtrCheck(StringRef Name, ClangTidyContext *Context);
   bool isLanguageVersionSupported(const LangOptions &LangOpts) const override;
