@@ -93,7 +93,7 @@
 #include "UnhandledExceptionAtNewCheck.h"
 #include "UnhandledSelfAssignmentCheck.h"
 #include "UnintendedCharOstreamOutputCheck.h"
-#include "UnionPtrCastToNonUnionMemberTypePtrCheck.h"
+#include "UnionPtrCastCheck.h"
 #include "UniquePtrArrayMismatchCheck.h"
 #include "UnsafeFunctionsCheck.h"
 #include "UnusedLocalNonTrivialVariableCheck.h"
@@ -267,8 +267,8 @@ public:
         "bugprone-unhandled-self-assignment");
     CheckFactories.registerCheck<UnhandledExceptionAtNewCheck>(
         "bugprone-unhandled-exception-at-new");
-    CheckFactories.registerCheck<UnionPtrCastToNonUnionMemberTypePtrCheck>(
-        "bugprone-union-ptr-cast-to-non-union-member-type-ptr");
+    CheckFactories.registerCheck<UnionPtrCastCheck>(
+        "bugprone-union-ptr-cast");
     CheckFactories.registerCheck<UniquePtrArrayMismatchCheck>(
         "bugprone-unique-ptr-array-mismatch");
     CheckFactories.registerCheck<CrtpConstructorAccessibilityCheck>(

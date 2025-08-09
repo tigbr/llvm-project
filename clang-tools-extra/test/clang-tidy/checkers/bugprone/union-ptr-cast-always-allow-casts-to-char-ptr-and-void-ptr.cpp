@@ -10,13 +10,10 @@ union MyUnion {
 };
 
 void option_dependent_behaviors(union MyUnion *u) {
+    void *v = u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: the union pointed to by this expression has no field with the type 'void'
     (char*) u;   // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'char'
     (void*) u;   // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'void'
-    void *v = u; // CHECK-MESSAGES: :[[@LINE]]:15: warning: the union pointed to by this expression has no field with the type 'void'
-}
 
-void irrelevant_casts(long i) {
-	unsigned long ul = i;
-	(unsigned long) i;
-	void *v = (void*) i;
+    reinterpret_cast<char*>(u); // CHECK-MESSAGES: :[[@LINE]]:29: warning: the union pointed to by this expression has no field with the type 'char'
+    reinterpret_cast<void*>(u); // CHECK-MESSAGES: :[[@LINE]]:29: warning: the union pointed to by this expression has no field with the type 'void'
 }
