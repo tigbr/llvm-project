@@ -16,17 +16,19 @@ namespace clang::tidy::bugprone {
 /// FIXME: Write a short description.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/bugprone/union-ptr-cast-to-non-union-member-ptr.html
+/// http://clang.llvm.org/extra/clang-tidy/checks/bugprone/union-ptr-cast.html
 class UnionPtrCastCheck : public ClangTidyCheck {
   const bool AlwaysAllowCastToPtrToVoid;
   const bool AlwaysAllowCastToPtrToChar;
-  const bool HandleAliasedTypesStrictly;
+  const bool AllowCastToUnderlyingAliasedType;
+  const bool AnalyzeUnionsFromStdNamespace;
+  const bool AnalyzeUnionsFromSystemHeaders;
 public:
   UnionPtrCastCheck(StringRef Name, ClangTidyContext *Context);
   bool isLanguageVersionSupported(const LangOptions &LangOpts) const override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
-  void AnalyzeCast(const RecordDecl *Union, const Expr *SubExpression, QualType PointeeQualType);
+  void AnalyzeCast(const RecordDecl *Union, const Expr *SubExpression, QualType PointeeQualType, const CXXRecordDecl *PointeeCXXRecordDecl);
 };
 
 } // namespace clang::tidy::bugprone
