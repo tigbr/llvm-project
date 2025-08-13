@@ -77,12 +77,6 @@ void castsToTypesWithNoCorresspondingFieldInUnion(union MyUnion *U) {
   (int*)    U; // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'int'
   (long*)   U; // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'long'
   (double*) U; // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'double'
-
-  // It does not matter that the union has a field with the same type
-  // as the aliased type. Typedefs and usings are not considered "transparent"
-  // in that sense.
-  short_ptr_typedef V5 = U; // CHECK-MESSAGES: :[[@LINE]]:26: warning: the union pointed to by this expression has no field with the type 'short_ptr_typedef'
-  (short_ptr_typedef) U; // CHECK-MESSAGES: :[[@LINE]]:23: warning: the union pointed to by this expression has no field with the type 'short_ptr_typedef'
 }
 
 void castWithUnknownUnionDefinition(union Unknown *U) {
@@ -99,9 +93,15 @@ void castWithUnknownUnionDefinition(union Unknown *U) {
   (double*) U; // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'double'
 }
 
-void irrelevantCastExpressions(long i) {
+void irrelevantCastExpressions(union MyUnion *U, long i) {
   long LI;
   unsigned long UL = LI;
   (unsigned long) LI;
   (void*) LI;
+
+  // It does not matter that the union has a field with the same type
+  // as the aliased type. Typedefs and usings are not considered "transparent"
+  // in that sense.
+  short_ptr_typedef V5 = U;
+  (short_ptr_typedef) U;
 }

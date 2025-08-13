@@ -15,7 +15,6 @@ namespace clang::tidy::bugprone {
 
 static constexpr llvm::StringLiteral AlwaysAllowCastToPtrToVoidOptionName = "AlwaysAllowCastToPtrToVoid";
 static constexpr llvm::StringLiteral AlwaysAllowCastToPtrToCharOptionName = "AlwaysAllowCastToPtrToChar";
-static constexpr llvm::StringLiteral AllowCastToUnderlyingAliasedTypeOptionName = "AllowCastToUnderlyingAliasedType";
 static constexpr llvm::StringLiteral AnalyzeUnionsFromStdNamespaceOptionName = "AnalyzeUnionsFromStdNamespace";
 static constexpr llvm::StringLiteral AnalyzeUnionsFromSystemHeadersOptionName = "AnalyzeUnionsFromSystemHeaders";
 static constexpr llvm::StringLiteral UnionBindName = "union";
@@ -24,7 +23,6 @@ static constexpr llvm::StringLiteral CastBindName = "cast";
 UnionPtrCastCheck::UnionPtrCastCheck(StringRef Name, ClangTidyContext *Context) : ClangTidyCheck(Name, Context),
       AlwaysAllowCastToPtrToVoid(Options.get(AlwaysAllowCastToPtrToVoidOptionName, true)),
       AlwaysAllowCastToPtrToChar(Options.get(AlwaysAllowCastToPtrToCharOptionName, true)),
-      AllowCastToUnderlyingAliasedType(Options.get(AllowCastToUnderlyingAliasedTypeOptionName, true)),
       AnalyzeUnionsFromStdNamespace(Options.get(AnalyzeUnionsFromStdNamespaceOptionName, false)),
       AnalyzeUnionsFromSystemHeaders(Options.get(AnalyzeUnionsFromSystemHeadersOptionName, false)) { }
 
@@ -54,8 +52,6 @@ void UnionPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
   const Type *CastTargetType = Cast->getType().getTypePtrOrNull();
   if (const auto *P = llvm::dyn_cast<PointerType>(CastTargetType))
     AnalyzeCast(Union, Cast->getSubExpr(), P->getPointeeType(), CastTargetType->getPointeeCXXRecordDecl());
-  else if (const auto *E = llvm::dyn_cast<ElaboratedType>(CastTargetType))
-    AnalyzeCast(Union, Cast->getSubExpr(), E->getNamedType(), CastTargetType->getPointeeCXXRecordDecl());
 }
 
 void UnionPtrCastCheck::AnalyzeCast(const RecordDecl *Union, const Expr *SubExpression, QualType PointeeQualType, const CXXRecordDecl *PointeeCXXRecordDecl) {

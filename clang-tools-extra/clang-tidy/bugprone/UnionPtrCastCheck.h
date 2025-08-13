@@ -20,7 +20,6 @@ namespace clang::tidy::bugprone {
 class UnionPtrCastCheck : public ClangTidyCheck {
   const bool AlwaysAllowCastToPtrToVoid;
   const bool AlwaysAllowCastToPtrToChar;
-  const bool AllowCastToUnderlyingAliasedType;
   const bool AnalyzeUnionsFromStdNamespace;
   const bool AnalyzeUnionsFromSystemHeaders;
 public:

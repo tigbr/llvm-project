@@ -109,15 +109,7 @@ void optionDependentDefaultBehaviors(union MyUnion *U) {
 void castsToTypesWithNoCorresspondingFieldInUnion(union MyUnion *U) {
   (long*) U; // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'long'
 
-  // It does not matter that the union has a field with the same type
-  // as the aliased type. Typedefs and usings are not considered "transparent"
-  // in that sense.
-  (short_ptr_typedef) U; // CHECK-MESSAGES: :[[@LINE]]:23: warning: the union pointed to by this expression has no field with the type 'short_ptr_typedef'
-  (short_ptr_using)   U; // CHECK-MESSAGES: :[[@LINE]]:23: warning: the union pointed to by this expression has no field with the type 'short_ptr_using'
-
   reinterpret_cast<long*>            (U); // CHECK-MESSAGES: :[[@LINE]]:39: warning: the union pointed to by this expression has no field with the type 'long'
-  reinterpret_cast<short_ptr_typedef>(U); // CHECK-MESSAGES: :[[@LINE]]:39: warning: the union pointed to by this expression has no field with the type 'short_ptr_typedef'
-  reinterpret_cast<short_ptr_using>  (U); // CHECK-MESSAGES: :[[@LINE]]:39: warning: the union pointed to by this expression has no field with the type 'short_ptr_using'
 }
 
 void castsWithQualifierMismatches() {
@@ -184,12 +176,20 @@ void castsWhenUnionDefinitionIsUnknown(union Unknown *U) {
   reinterpret_cast<PublicDerived3*>      (U); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'PublicDerived3'
 }
 
-void irrelevantCastExpressions() {
+void irrelevantCastExpressions(union MyUnion *U) {
   long LI;
   unsigned long UL = LI;
   (unsigned long) LI;
   // Already an error at compile time
   // reinterpret_cast<unsigned long>(LI);
+
+  // It does not matter that the union has a field with the same type
+  // as the aliased type. Typedefs and usings are not considered "transparent"
+  // in that sense.
+  (short_ptr_typedef) U;
+  (short_ptr_using) U;
+  reinterpret_cast<short_ptr_typedef>(U);
+  reinterpret_cast<short_ptr_using>  (U);
 
   (void*) LI;
   reinterpret_cast<void*>(LI);
