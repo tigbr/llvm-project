@@ -1,0 +1,23 @@
+// RUN: %check_clang_tidy -std=c++98-or-later %s bugprone-union-ptr-cast %t \
+// RUN:   --config='{CheckOptions: { \
+// RUN:     bugprone-union-ptr-cast.AlwaysAllowCastToVoidPtr: false, \
+// RUN:     bugprone-union-ptr-cast.AnalyzeUnionsFromStdNamespace: true, \
+// RUN:     bugprone-union-ptr-cast.AnalyzeUnionsFromSystemHeaders: true \
+// RUN:  }}' -- \
+// RUN: -I%S/Inputs/union-ptr-cast \
+// RUN: -isystem %S/Inputs/union-ptr-cast/system
+
+#include "stdnamespace.h"
+#include <pthread.h>
+
+void fromStdNamespace(std::pthread_mutex_t *T) {
+    void *P = T;                // CHECK-MESSAGES: :[[@LINE]]:15: warning: the union pointed to by this expression has no field with the type 'void'
+    (void*) T;                  // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'void'
+    reinterpret_cast<void*>(T); // CHECK-MESSAGES: :[[@LINE]]:29: warning: the union pointed to by this expression has no field with the type 'void'
+}
+
+void fromSystemHeaderFile(pthread_mutex_t *T) {
+    void *P = T;                // CHECK-MESSAGES: :[[@LINE]]:15: warning: the union pointed to by this expression has no field with the type 'void'
+    (void*) T;                  // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'void'
+    reinterpret_cast<void*>(T); // CHECK-MESSAGES: :[[@LINE]]:29: warning: the union pointed to by this expression has no field with the type 'void'
+}

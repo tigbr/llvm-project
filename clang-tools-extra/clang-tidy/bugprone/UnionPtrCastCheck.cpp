@@ -13,16 +13,16 @@ using namespace clang::ast_matchers;
 
 namespace clang::tidy::bugprone {
 
-static constexpr llvm::StringLiteral AlwaysAllowCastToPtrToVoidOptionName = "AlwaysAllowCastToPtrToVoid";
-static constexpr llvm::StringLiteral AlwaysAllowCastToPtrToCharOptionName = "AlwaysAllowCastToPtrToChar";
+static constexpr llvm::StringLiteral AlwaysAllowCastToVoidPtrOptionName = "AlwaysAllowCastToVoidPtr";
+static constexpr llvm::StringLiteral AlwaysAllowCastToCharPtrOptionName = "AlwaysAllowCastToCharPtr";
 static constexpr llvm::StringLiteral AnalyzeUnionsFromStdNamespaceOptionName = "AnalyzeUnionsFromStdNamespace";
 static constexpr llvm::StringLiteral AnalyzeUnionsFromSystemHeadersOptionName = "AnalyzeUnionsFromSystemHeaders";
 static constexpr llvm::StringLiteral UnionBindName = "union";
 static constexpr llvm::StringLiteral CastBindName = "cast";
 
 UnionPtrCastCheck::UnionPtrCastCheck(StringRef Name, ClangTidyContext *Context) : ClangTidyCheck(Name, Context),
-      AlwaysAllowCastToPtrToVoid(Options.get(AlwaysAllowCastToPtrToVoidOptionName, true)),
-      AlwaysAllowCastToPtrToChar(Options.get(AlwaysAllowCastToPtrToCharOptionName, true)),
+      AlwaysAllowCastToVoidPtr(Options.get(AlwaysAllowCastToVoidPtrOptionName, true)),
+      AlwaysAllowCastToCharPtr(Options.get(AlwaysAllowCastToCharPtrOptionName, true)),
       AnalyzeUnionsFromStdNamespace(Options.get(AnalyzeUnionsFromStdNamespaceOptionName, false)),
       AnalyzeUnionsFromSystemHeaders(Options.get(AnalyzeUnionsFromSystemHeadersOptionName, false)) { }
 
@@ -31,13 +31,11 @@ bool UnionPtrCastCheck::isLanguageVersionSupported(const LangOptions &LangOpts) 
 }
 
 void UnionPtrCastCheck::registerMatchers(MatchFinder *Finder) {
-  auto filterStdNamespaceOrSystemHeader = unless(anyOf(
-    AnalyzeUnionsFromStdNamespace  ? decl(isInStdNamespace())
-                                   : decl(unless(anything())),
-    AnalyzeUnionsFromSystemHeaders ? decl(isExpansionInSystemHeader())
-                                   : decl(unless(anything()))
-  ));
-  auto hasPointerToUnionSourceExpr = hasSourceExpression(hasType(pointerType(pointee(hasUnqualifiedDesugaredType(recordType(hasDeclaration(recordDecl(isUnion(), filterStdNamespaceOrSystemHeader).bind(UnionBindName))))))));
+  // wrapping the filters in a decl makes sure both branches have the same
+  // return type, otherwise a compiler error is given
+  auto stdNamespaceFilter = AnalyzeUnionsFromStdNamespace ? decl(anything()) : decl(unless(isInStdNamespace()));
+  auto systemHeaderFilter = AnalyzeUnionsFromSystemHeaders ? decl(anything()) : decl(unless(isExpansionInSystemHeader()));
+  auto hasPointerToUnionSourceExpr = hasSourceExpression(hasType(pointerType(pointee(hasUnqualifiedDesugaredType(recordType(hasDeclaration(recordDecl(isUnion(), stdNamespaceFilter, systemHeaderFilter).bind(UnionBindName))))))));
   auto isRelevantCastKindAndSourceExpr = allOf(hasCastKind(CK_BitCast), hasPointerToUnionSourceExpr);
 
   Finder->addMatcher(implicitCastExpr(hasImplicitDestinationType(isAnyPointer()), isRelevantCastKindAndSourceExpr).bind(CastBindName), this);
@@ -56,8 +54,8 @@ void UnionPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
 
 void UnionPtrCastCheck::AnalyzeCast(const RecordDecl *Union, const Expr *SubExpression, QualType PointeeQualType, const CXXRecordDecl *PointeeCXXRecordDecl) {
   if (const auto *T = llvm::dyn_cast<BuiltinType>(PointeeQualType.getTypePtr())) {
-    if (AlwaysAllowCastToPtrToVoid && T->isVoidType()) return;
-    if (AlwaysAllowCastToPtrToChar && T->isCharType()) return;
+    if (AlwaysAllowCastToVoidPtr && T->isVoidType()) return;
+    if (AlwaysAllowCastToCharPtr && T->isCharType()) return;
   }
   if (Union->isCompleteDefinition()) {
     for (FieldDecl *D : Union->fields()) {

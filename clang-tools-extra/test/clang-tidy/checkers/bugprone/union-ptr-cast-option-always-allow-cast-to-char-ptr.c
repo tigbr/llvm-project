@@ -1,0 +1,16 @@
+// RUN: %check_clang_tidy %s bugprone-union-ptr-cast %t \
+// RUN:   -config='{CheckOptions: { \
+// RUN:     bugprone-union-ptr-cast.AlwaysAllowCastToCharPtr: false, \
+// RUN:  }}' --
+
+union MyUnion {
+    short s;
+    float f;
+};
+
+void option_dependent_behaviors(union MyUnion *U) {
+    char *V1 = U; // CHECK-MESSAGES: :[[@LINE]]:16: warning: the union pointed to by this expression has no field with the type 'char'
+    void *V2 = U;
+    (char*) U;   // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'char'
+    (void*) U;
+}

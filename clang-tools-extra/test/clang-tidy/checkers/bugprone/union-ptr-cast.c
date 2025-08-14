@@ -1,4 +1,5 @@
-// RUN: %check_clang_tidy %s bugprone-union-ptr-cast %t
+// RUN: %check_clang_tidy %s bugprone-union-ptr-cast %t -- -- \
+// RUN: -isystem %S/Inputs/union-ptr-cast/system
 
 typedef short *short_ptr_typedef;
 
@@ -104,4 +105,14 @@ void irrelevantCastExpressions(union MyUnion *U, long i) {
   // in that sense.
   short_ptr_typedef V5 = U;
   (short_ptr_typedef) U;
+}
+
+// Do not analyze those expression by default where the union pointed to
+// from a system header file.
+
+#include <pthread.h>
+
+void fromSystemHeaderFile(pthread_mutex_t *T) {
+    void *P = T;
+    (void*) T;
 }

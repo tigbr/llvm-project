@@ -1,4 +1,6 @@
-// RUN: %check_clang_tidy -std=c++98-or-later %s bugprone-union-ptr-cast %t
+// RUN: %check_clang_tidy -std=c++98-or-later %s bugprone-union-ptr-cast %t -- -- \
+// RUN: -I%S/Inputs/union-ptr-cast \
+// RUN: -isystem %S/Inputs/union-ptr-cast/system
 
 typedef short *short_ptr_typedef;
 using short_ptr_using = short*;
@@ -202,4 +204,22 @@ void irrelevantCastExpressions(union MyUnion *U) {
   B = (Base*) D;
   B = reinterpret_cast<Base*>(D);
   B = static_cast<Base*>(D);
+}
+
+// Do not analyze those expression by default where the union pointed to
+// comes from the std namespace or a system header file
+
+#include "stdnamespace.h"
+#include <pthread.h>
+
+void fromStdNamespace(std::pthread_mutex_t *T) {
+    void *P = T;
+    (void*) T;
+    reinterpret_cast<void*>(T);
+}
+
+void fromStdNamespace(pthread_mutex_t *T) {
+    void *P = T;
+    (void*) T;
+    reinterpret_cast<void*>(T);
 }
