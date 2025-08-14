@@ -77,6 +77,7 @@ public:
 };
 
 struct PendingTaggedUnionAccess {
+	ExplodedNode *exploded_node;
 	CheckerContext checker_context;
 	const FieldDecl *accessed_union_field;
 	SVal tag_sval;
@@ -110,6 +111,7 @@ public:
  
 	void checkBranchCondition(const clang::Stmt *Statement, CheckerContext &C) const;
 	void checkLocation(SVal Loc, bool IsLoad, const Stmt *S, CheckerContext &C) const;
+	void checkLocation2(SVal Loc, bool IsLoad, const Stmt *S, CheckerContext &C) const;
     void checkPostStmt(const BinaryOperator *O, CheckerContext &C) const;
     void checkPostStmt(const DeclRefExpr *D, CheckerContext &C) const;
 	void checkASTDecl(const TranslationUnitDecl *D, AnalysisManager &Mgr, BugReporter &BR) const;
@@ -406,8 +408,63 @@ void TaggedUnionChecker::checkEnumTagAccess(SVal Loc, bool IsLoad, const Stmt *S
 
 static std::vector<std::string> report_messages;
 
+static bool process_tagged_union(const RecordDecl *R, const FieldDecl **out_enum, const FieldDecl **out_union) {
+    bool has_union = false;
+    bool has_enum = false;
+	for (auto decl : R->fields()) {
+        if (has_union && true) return false;
+        if (has_enum && true)  return false;
+	}
+    return true;
+}
+
+
+void TaggedUnionChecker::checkLocation2(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) const {
+    auto *region = Loc.getAsRegion();
+	if (!region) return;
+
+	auto *field_region = region->getAs<FieldRegion>();
+	if (!field_region) return;
+
+	auto *super_fieldregion = field_region->getSuperRegion();
+	auto *super_subregion = super_fieldregion->getAs<SubRegion>();
+	if (!super_subregion) return;
+
+	auto *super_super_subregion = super_subregion->getSuperRegion();
+	if (!super_super_subregion) return;
+	auto *tvr = super_super_subregion->getAs<TypedValueRegion>();
+	if (!tvr) return;
+
+	QualType qualtype_desugared = tvr->getDesugaredValueType(C.getASTContext());
+	const Type *desugared_type = qualtype_desugared.getTypePtrOrNull();
+	if (!desugared_type) return;
+	if (!desugared_type->isRecordType()) return;
+
+	const RecordType *desugared_record_type = desugared_type->getAsStructureType();
+	if (!desugared_record_type) return;
+	const RecordDecl *root = desugared_record_type->getDecl();
+
+    const FieldDecl *union_field = nullptr;
+    const FieldDecl *enum_field = nullptr;
+    if (!process_tagged_union(root, &enum_field, &union_field)) return;
+
+	const RecordDecl *union_decl = llvm::dyn_cast<RecordType>(union_field->getType())->getDecl();
+    auto *accessed_field_decl = field_region->getDecl();
+    for (auto field : union_decl->fields()) {
+		if (field == accessed_field_decl) {
+			MemRegionManager &memregion_manager = region->getMemRegionManager();
+			const FieldRegion *enum_field_region = memregion_manager.getFieldRegion(enum_field, tvr);
+			QualType enum_type = enum_field_region->getValueType();
+			SVal enum_value_sval = C.getState()->getSVal(enum_field_region, enum_type);
+    		const llvm::APSInt *tag_value_apsint = enum_value_sval.getAsInteger();
+       }
+    }
+}
+
 void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) const {
 	using namespace clang::ast_matchers;
+
+	// Statement->dump();
 
 	// const NoteTag *note_something = C.getNoteTag([](PathSensitiveBugReport &BR) { return "Something!"; });
 	// C.addTransition(C.getState(), note_something);
@@ -463,12 +520,40 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 		}
 	}
 
+	// for (auto& it = contexts.begin(); it != contexts.end(); it++) {
+	// 	if (it.checker_context.getPredecessor()) {
+	// 		
+	// 	}
+	// }
+
+	for (int i = 0; i < contexts.size(); i += 1) {
+		if (contexts[i].exploded_node == C.getPredecessor()) {
+			C.addTransition();
+			SVal enum_value_sval_after_transition = programstate->getSVal(enum_field_region, enum_type);
+			const llvm::APSInt *tag_value_apsint_after_transition = enum_value_sval_after_transition.getAsInteger();
+			if (tag_value_apsint_after_transition) {
+				llvm::errs() << "Is the enum equal to " << *tag_value_apsint_after_transition << "?\n";
+			}
+			ExplodedNode *N = C.generateErrorNode();
+			report_messages.push_back("asdfasdfasdfadsfadsf");
+			std::string *new_message = &report_messages[report_messages.size() - 1];
+			auto Report = std::make_unique<PathSensitiveBugReport>(BT, *new_message, N);
+			C.emitReport(std::move(Report));
+		}
+	}
+
+	if (accessed_union_field) {
+		contexts.emplace_back(PendingTaggedUnionAccess{C.addTransition(), C, accessed_union_field, enum_value_sval});
+	}
+
+	return;
+
 	if (accessed_union_field) {
 		if (tag_value_apsint) {
 			auto &map_for_current = tagged_union_invariants[root];
 			auto expected_field = map_for_current.find(*tag_value_apsint);
 			if (contexts.size() < 5) {
-				contexts.emplace_back(PendingTaggedUnionAccess{C, accessed_union_field, enum_value_sval});
+				contexts.emplace_back(PendingTaggedUnionAccess{C.addTransition(), C, accessed_union_field, enum_value_sval});
 			}
 			if (expected_field != map_for_current.end()) {
 				if (accessed_union_field != expected_field->second) {
@@ -537,8 +622,12 @@ void TaggedUnionChecker::checkASTDecl(const TranslationUnitDecl *D, AnalysisMana
 }
 
 void TaggedUnionChecker::checkEndAnalysis(ExplodedGraph &G, BugReporter &BR, ExprEngine &Eng) const {
+	return;
 	for (int i = 0; i < contexts.size(); i += 1) {
-		
+		if (const ExplodedNode *exploded_node = contexts[i].exploded_node) 
+		if (const Stmt *statement = exploded_node->getNextStmtForDiagnostics()) {
+			statement->dump();
+		}
 	}
 }
 
