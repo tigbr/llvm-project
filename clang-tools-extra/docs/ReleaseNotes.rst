@@ -139,7 +139,9 @@ New checks
 - New :doc:`bugprone-union-ptr-cast
   <clang-tidy/checks/bugprone/union-ptr-cast>` check.
 
-  FIXME: Write a short description.
+  Gives warnings for implicit cast, C-style cast and ``reinterpret_cast``
+  expressions between pointers, where the source is a pointer to a ``union``,
+  and that ``union`` has no field with the same type as target's pointee type.
 
 - New :doc:`portability-avoid-pragma-once
   <clang-tidy/checks/portability/avoid-pragma-once>` check.

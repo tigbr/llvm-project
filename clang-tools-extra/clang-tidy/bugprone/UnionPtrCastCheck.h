@@ -13,7 +13,9 @@
 
 namespace clang::tidy::bugprone {
 
-/// FIXME: Write a short description.
+/// Gives warnings for implicit cast, C-style cast and ``reinterpret_cast``
+/// expressions between pointers, where the source is a pointer to a ``union``,
+/// and that ``union`` has no field with the same type as target's pointee type.
 ///
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/bugprone/union-ptr-cast.html
