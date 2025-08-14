@@ -49,10 +49,10 @@ void UnionPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
   assert(Cast && "Node for cast expression is not returned in MatchResult!");
   const Type *CastTargetType = Cast->getType().getTypePtrOrNull();
   if (const auto *P = llvm::dyn_cast<PointerType>(CastTargetType))
-    AnalyzeCast(Union, Cast->getSubExpr(), P->getPointeeType(), CastTargetType->getPointeeCXXRecordDecl());
+    analyzeCast(Union, Cast->getSubExpr(), P->getPointeeType(), CastTargetType->getPointeeCXXRecordDecl());
 }
 
-void UnionPtrCastCheck::AnalyzeCast(const RecordDecl *Union, const Expr *SubExpression, QualType PointeeQualType, const CXXRecordDecl *PointeeCXXRecordDecl) {
+void UnionPtrCastCheck::analyzeCast(const RecordDecl *Union, const Expr *SubExpression, QualType PointeeQualType, const CXXRecordDecl *PointeeCXXRecordDecl) {
   if (const auto *T = llvm::dyn_cast<BuiltinType>(PointeeQualType.getTypePtr())) {
     if (AlwaysAllowCastToVoidPtr && T->isVoidType()) return;
     if (AlwaysAllowCastToCharPtr && T->isCharType()) return;

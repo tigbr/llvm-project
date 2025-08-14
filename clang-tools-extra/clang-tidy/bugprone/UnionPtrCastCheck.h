@@ -20,16 +20,19 @@ namespace clang::tidy::bugprone {
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/bugprone/union-ptr-cast.html
 class UnionPtrCastCheck : public ClangTidyCheck {
-  const bool AlwaysAllowCastToVoidPtr;
-  const bool AlwaysAllowCastToCharPtr;
-  const bool AnalyzeUnionsFromStdNamespace;
-  const bool AnalyzeUnionsFromSystemHeaders;
 public:
   UnionPtrCastCheck(StringRef Name, ClangTidyContext *Context);
   bool isLanguageVersionSupported(const LangOptions &LangOpts) const override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
-  void AnalyzeCast(const RecordDecl *Union, const Expr *SubExpression, QualType PointeeQualType, const CXXRecordDecl *PointeeCXXRecordDecl);
+
+private:
+  const bool AlwaysAllowCastToVoidPtr;
+  const bool AlwaysAllowCastToCharPtr;
+  const bool AnalyzeUnionsFromStdNamespace;
+  const bool AnalyzeUnionsFromSystemHeaders;
+
+  void analyzeCast(const RecordDecl *Union, const Expr *SubExpression, QualType PointeeQualType, const CXXRecordDecl *PointeeCXXRecordDecl);
 };
 
 } // namespace clang::tidy::bugprone
