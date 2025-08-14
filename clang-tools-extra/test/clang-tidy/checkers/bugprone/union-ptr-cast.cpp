@@ -31,7 +31,7 @@ union MyUnion {
 // in C++, if used for this purpose, so they are not present.
 
 // Implicit casts like char *c = &MyUnion are also compile-time errors in C++.
-// Those cases are included only in the C test file.
+// Those cases are included in the C test file.
 
 void castToTypeInUnion(union MyUnion *U) {
   (volatile char**) U;
@@ -182,12 +182,12 @@ void irrelevantCastExpressions(union MyUnion *U) {
   long LI;
   unsigned long UL = LI;
   (unsigned long) LI;
-  // Already an error at compile time
+  // This is already a compile time error.
   // reinterpret_cast<unsigned long>(LI);
 
   // It does not matter that the union has a field with the same type
   // as the aliased type. Typedefs and usings are not considered "transparent"
-  // in that sense.
+  // in that sense by the check.
   (short_ptr_typedef) U;
   (short_ptr_using) U;
   reinterpret_cast<short_ptr_typedef>(U);
@@ -206,8 +206,8 @@ void irrelevantCastExpressions(union MyUnion *U) {
   B = static_cast<Base*>(D);
 }
 
-// Do not analyze those expression by default where the union pointed to
-// comes from the std namespace or a system header file
+// By default, do not analyze cast expressions where the pointee union
+// comes from the std namespace or from a system header file.
 
 #include "stdnamespace.h"
 #include <pthread.h>

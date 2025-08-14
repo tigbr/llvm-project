@@ -102,13 +102,14 @@ void irrelevantCastExpressions(union MyUnion *U, long i) {
 
   // It does not matter that the union has a field with the same type
   // as the aliased type. Typedefs and usings are not considered "transparent"
-  // in that sense.
+  // in that sense by the check.
   short_ptr_typedef V5 = U;
   (short_ptr_typedef) U;
 }
 
-// Do not analyze those expression by default where the union pointed to
-// from a system header file.
+// By default, do not analyze cast expressions where the pointee union
+// comes from from a system header file. C has no namespaces, so that
+// is omitted from this file.
 
 #include <pthread.h>
 

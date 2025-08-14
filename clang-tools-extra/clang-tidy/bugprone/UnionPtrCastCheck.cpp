@@ -31,8 +31,8 @@ bool UnionPtrCastCheck::isLanguageVersionSupported(const LangOptions &LangOpts) 
 }
 
 void UnionPtrCastCheck::registerMatchers(MatchFinder *Finder) {
-  // wrapping the filters in a decl makes sure both branches have the same
-  // return type, otherwise a compiler error is given
+  // Wrapping the filters in a decl ensures that both branches have the same
+  // return type, otherwise a compiler error is given.
   auto stdNamespaceFilter = AnalyzeUnionsFromStdNamespace ? decl(anything()) : decl(unless(isInStdNamespace()));
   auto systemHeaderFilter = AnalyzeUnionsFromSystemHeaders ? decl(anything()) : decl(unless(isExpansionInSystemHeader()));
   auto hasPointerToUnionSourceExpr = hasSourceExpression(hasType(pointerType(pointee(hasUnqualifiedDesugaredType(recordType(hasDeclaration(recordDecl(isUnion(), stdNamespaceFilter, systemHeaderFilter).bind(UnionBindName))))))));
