@@ -8,6 +8,6 @@
 #include <pthread.h>
 
 void fromSystemHeaderFile(pthread_mutex_t *T) {
-    void *P = T;                // CHECK-MESSAGES: :[[@LINE]]:15: warning: the union pointed to by this expression has no field with the type 'void'
-    (void*) T;                  // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'void'
+  void *P = T; // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'void'
+  (void*) T; // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'void'
 }

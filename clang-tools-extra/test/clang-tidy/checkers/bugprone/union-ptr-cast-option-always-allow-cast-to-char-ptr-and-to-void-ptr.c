@@ -5,13 +5,13 @@
 // RUN:  }}' --
 
 union MyUnion {
-    short s;
-    float f;
+  short S;
+  float F;
 };
 
 void option_dependent_behaviors(union MyUnion *U) {
-    char *V1 = U; // CHECK-MESSAGES: :[[@LINE]]:16: warning: the union pointed to by this expression has no field with the type 'char'
-    void *V2 = U; // CHECK-MESSAGES: :[[@LINE]]:16: warning: the union pointed to by this expression has no field with the type 'void'
-    (char*) U;   // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'char'
-    (void*) U;   // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'void'
+  char *V1 = U; // CHECK-MESSAGES: :[[@LINE]]:14: warning: the union pointed to by this expression has no field with the type 'char'
+  void *V2 = U; // CHECK-MESSAGES: :[[@LINE]]:14: warning: the union pointed to by this expression has no field with the type 'void'
+  (char*) U; // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'char'
+  (void*) U; // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'void'
 }

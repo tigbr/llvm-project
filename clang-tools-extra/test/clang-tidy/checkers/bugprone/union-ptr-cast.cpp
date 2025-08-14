@@ -2,8 +2,8 @@
 // RUN: -I%S/Inputs/union-ptr-cast \
 // RUN: -isystem %S/Inputs/union-ptr-cast/system
 
-typedef short *short_ptr_typedef;
-using short_ptr_using = short*;
+typedef short *ShortPtrTypedef;
+using ShortPtrUsing = short*;
 
 class Base { int I; };
 class PublicDerived : public Base { };
@@ -13,19 +13,22 @@ class PublicDerived2 : public PublicDerived { };
 class PublicDerived3 : public PublicDerived2 { };
 
 union MyUnion {
-  volatile char *vptr;
-  const char *cptr;
-  const volatile char *vcptr;
-  short s;
-  float f;
-  short_ptr_typedef spt;
-  short_ptr_using spu;
-  PublicDerived pub;
-  ProtectedDerived prot;
-  PrivateDerived priv;
-  PublicDerived2 pub2;
-  PublicDerived3 pub3;
+  volatile char *F1;
+  const char *F2;
+  const volatile char *F3;
+  short F4;
+  float F5;
+  ShortPtrTypedef F6;
+  ShortPtrUsing F7;
+  PublicDerived F8;
+  ProtectedDerived F9;
+  PrivateDerived F10;
+  PublicDerived2 F11;
+  PublicDerived3 F12;
 };
+
+typedef union MyUnion TypedefMyUnion;
+using UsingMyUnion = union MyUnion;
 
 // static_cast and dynamic_cast expressions would produce compile-time errors
 // in C++, if used for this purpose, so they are not present.
@@ -33,60 +36,146 @@ union MyUnion {
 // Implicit casts like char *c = &MyUnion are also compile-time errors in C++.
 // Those cases are included in the C test file.
 
-void castToTypeInUnion(union MyUnion *U) {
+void castToTypeInUnion(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {
   (volatile char**) U;
   (const char**) U;
   (const volatile char**) U;
   (short*) U;
   (float*) U;
-  (short_ptr_typedef*) U;
-  (short_ptr_using*) U;
+  (ShortPtrTypedef*) U;
+  (ShortPtrUsing*) U;
   (PublicDerived*) U;
   (ProtectedDerived*) U;
   (PrivateDerived*) U;
   (PublicDerived2*) U;
   (PublicDerived3*) U;
 
+  (volatile char**) TU;
+  (const char**) TU;
+  (const volatile char**) TU;
+  (short*) TU;
+  (float*) TU;
+  (ShortPtrTypedef*) TU;
+  (ShortPtrUsing*) TU;
+  (PublicDerived*) TU;
+  (ProtectedDerived*) TU;
+  (PrivateDerived*) TU;
+  (PublicDerived2*) TU;
+  (PublicDerived3*) TU;
+
+  (volatile char**) UU;
+  (const char**) UU;
+  (const volatile char**) UU;
+  (short*) UU;
+  (float*) UU;
+  (ShortPtrTypedef*) UU;
+  (ShortPtrUsing*) UU;
+  (PublicDerived*) UU;
+  (ProtectedDerived*) UU;
+  (PrivateDerived*) UU;
+  (PublicDerived2*) UU;
+  (PublicDerived3*) UU;
+
   reinterpret_cast<volatile char**>(U);
   reinterpret_cast<const char**>(U);
   reinterpret_cast<const volatile char**>(U);
   reinterpret_cast<short*>(U);
   reinterpret_cast<float*>(U);
-  reinterpret_cast<short_ptr_typedef*>(U);
-  reinterpret_cast<short_ptr_using*>(U);
+  reinterpret_cast<ShortPtrTypedef*>(U);
+  reinterpret_cast<ShortPtrUsing*>(U);
   reinterpret_cast<PublicDerived*>(U);
   reinterpret_cast<ProtectedDerived*>(U);
   reinterpret_cast<PrivateDerived*>(U);
   reinterpret_cast<PublicDerived2*>(U);
   reinterpret_cast<PublicDerived3*>(U);
+
+  reinterpret_cast<volatile char**>(TU);
+  reinterpret_cast<const char**>(TU);
+  reinterpret_cast<const volatile char**>(TU);
+  reinterpret_cast<short*>(TU);
+  reinterpret_cast<float*>(TU);
+  reinterpret_cast<ShortPtrTypedef*>(TU);
+  reinterpret_cast<ShortPtrUsing*>(TU);
+  reinterpret_cast<PublicDerived*>(TU);
+  reinterpret_cast<ProtectedDerived*>(TU);
+  reinterpret_cast<PrivateDerived*>(TU);
+  reinterpret_cast<PublicDerived2*>(TU);
+  reinterpret_cast<PublicDerived3*>(TU);
+
+  reinterpret_cast<volatile char**>(UU);
+  reinterpret_cast<const char**>(UU);
+  reinterpret_cast<const volatile char**>(UU);
+  reinterpret_cast<short*>(UU);
+  reinterpret_cast<float*>(UU);
+  reinterpret_cast<ShortPtrTypedef*>(UU);
+  reinterpret_cast<ShortPtrUsing*>(UU);
+  reinterpret_cast<PublicDerived*>(UU);
+  reinterpret_cast<ProtectedDerived*>(UU);
+  reinterpret_cast<PrivateDerived*>(UU);
+  reinterpret_cast<PublicDerived2*>(UU);
+  reinterpret_cast<PublicDerived3*>(UU);
 }
 
 void castToBaseClassPointerTest() {
-  union { PublicDerived  field; }   *U1;
+  union { PublicDerived  field; } *U1;
+  typedef union { PublicDerived  field; } TypedefU1;
+  TypedefU1 *TU1;
+  using UsingU1 = union { PublicDerived  field; };
+  UsingU1 *UU1;
   (Base*) U1;
+  (Base*) TU1;
+  (Base*) UU1;
   reinterpret_cast<Base*>(U1);
+  reinterpret_cast<Base*>(TU1);
+  reinterpret_cast<Base*>(UU1);
 
-  union { PublicDerived2 field; }   *U2;
+  union { PublicDerived2 field; } *U2;
+  typedef union { PublicDerived2 field; } TypedefU2;
+  TypedefU2 *TU2;
+  using UsingU2 = union { PublicDerived2 field; };
+  UsingU2 *UU2;
   (Base*) U2;
+  (Base*) TU2;
+  (Base*) UU2;
   reinterpret_cast<Base*>(U2);
+  reinterpret_cast<Base*>(TU2);
+  reinterpret_cast<Base*>(UU2);
 
-  union { PublicDerived3 field; }   *U3; 
+  union { PublicDerived3 field; } *U3; 
+  typedef union { PublicDerived3 field; } TypedefU3;
+  TypedefU3 *TU3;
+  using UsingU3 = union { PublicDerived3 field; };
+  UsingU3 *UU3;
   (Base*) U3;
+  (Base*) TU3;
+  (Base*) UU3;
   reinterpret_cast<Base*>(U3);
+  reinterpret_cast<Base*>(TU3);
+  reinterpret_cast<Base*>(UU3);
 
   union { ProtectedDerived field; } *U4; 
+  typedef union { PublicDerived3 field; } TypedefU4;
+  TypedefU4 *TU4;
+  using UsingU4 = union { PublicDerived3 field; };
+  UsingU4 *UU4;
   (Base*) U4;
+  (Base*) TU4;
+  (Base*) UU4;
   reinterpret_cast<Base*>(U4);
+  reinterpret_cast<Base*>(TU4);
+  reinterpret_cast<Base*>(UU4);
 
-  union { PrivateDerived field; }   *U5; 
+  union { PrivateDerived field; } *U5; 
+  typedef union { PrivateDerived field; } TypedefU5;
+  TypedefU5 *TU5;
+  using UsingU5 = union { PrivateDerived field; };
+  UsingU5 *UU5;
   (Base*) U5;
+  (Base*) TU5;
+  (Base*) UU5;
   reinterpret_cast<Base*>(U5);
-}
-
-void castToUnionItself(union MyUnion *U) {
-  union MyUnion *MU = U;
-  (union MyUnion*) U;
-  reinterpret_cast<union MyUnion*>(U);
+  reinterpret_cast<Base*>(TU5);
+  reinterpret_cast<Base*>(UU5);
 }
 
 //
@@ -111,11 +200,15 @@ void optionDependentDefaultBehaviors(union MyUnion *U) {
 void castsToTypesWithNoCorresspondingFieldInUnion(union MyUnion *U) {
   (long*) U; // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'long'
 
-  reinterpret_cast<long*>            (U); // CHECK-MESSAGES: :[[@LINE]]:39: warning: the union pointed to by this expression has no field with the type 'long'
+  reinterpret_cast<long*>(U); // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'long'
 }
 
 void castsWithQualifierMismatches() {
-  union { char *Ptr; }   *U1;
+  typedef union { char *Ptr; } TypedefU1;
+  using UsingU1 = union { char *Ptr; };
+  TypedefU1 *TU1;
+  UsingU1 *UU1;
+  union { char *Ptr; } *U1;
   (volatile char**)       U1; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'volatile char *'
   (const char**)          U1; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const char *'
   (const volatile char**) U1; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
@@ -123,6 +216,25 @@ void castsWithQualifierMismatches() {
   reinterpret_cast<const char**>         (U1); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const char *'
   reinterpret_cast<const volatile char**>(U1); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
 
+  (volatile char**)       TU1; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'volatile char *'
+  (const char**)          TU1; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const char *'
+  (const volatile char**) TU1; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
+  reinterpret_cast<volatile char**>      (TU1); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'volatile char *'
+  reinterpret_cast<const char**>         (TU1); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const char *'
+  reinterpret_cast<const volatile char**>(TU1); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
+
+  (volatile char**)       UU1; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'volatile char *'
+  (const char**)          UU1; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const char *'
+  (const volatile char**) UU1; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
+  reinterpret_cast<volatile char**>      (UU1); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'volatile char *'
+  reinterpret_cast<const char**>         (UU1); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const char *'
+  reinterpret_cast<const volatile char**>(UU1); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
+
+
+  typedef union { const char *Ptr; } TypedefU2;
+  using UsingU2 = union { const char *Ptr; };
+  TypedefU2 *TU2;
+  UsingU2 *UU2;
   union { const char *Ptr; } *U2;
   (char**)                U2; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'char *'
   (volatile char**)       U2; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'volatile char *'
@@ -131,6 +243,25 @@ void castsWithQualifierMismatches() {
   reinterpret_cast<volatile char**>      (U2); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'volatile char *'
   reinterpret_cast<const volatile char**>(U2); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
 
+  (char**)                TU2; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'char *'
+  (volatile char**)       TU2; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'volatile char *'
+  (const volatile char**) TU2; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
+  reinterpret_cast<char**>               (TU2); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'char *'
+  reinterpret_cast<volatile char**>      (TU2); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'volatile char *'
+  reinterpret_cast<const volatile char**>(TU2); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
+
+  (char**)                UU2; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'char *'
+  (volatile char**)       UU2; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'volatile char *'
+  (const volatile char**) UU2; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
+  reinterpret_cast<char**>               (UU2); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'char *'
+  reinterpret_cast<volatile char**>      (UU2); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'volatile char *'
+  reinterpret_cast<const volatile char**>(UU2); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
+
+
+  typedef union { volatile char *Ptr; } TypedefU3;
+  using UsingU3 = union { volatile char *Ptr; };
+  TypedefU3 *TU3;
+  UsingU3 *UU3;
   union { volatile char *Ptr; } *U3;
   (char**)                U3; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'char *'
   (const char**)          U3; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const char *'
@@ -139,6 +270,24 @@ void castsWithQualifierMismatches() {
   reinterpret_cast<const char**>         (U3); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const char *'
   reinterpret_cast<const volatile char**>(U3); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
 
+  (char**)                TU3; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'char *'
+  (const char**)          TU3; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const char *'
+  (const volatile char**) TU3; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
+  reinterpret_cast<char**>               (TU3); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'char *'
+  reinterpret_cast<const char**>         (TU3); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const char *'
+  reinterpret_cast<const volatile char**>(TU3); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
+
+  (char**)                UU3; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'char *'
+  (const char**)          UU3; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const char *'
+  (const volatile char**) UU3; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
+  reinterpret_cast<char**>               (UU3); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'char *'
+  reinterpret_cast<const char**>         (UU3); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const char *'
+  reinterpret_cast<const volatile char**>(UU3); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
+
+  typedef union { const volatile char *Ptr; } TypedefU4;
+  using UsingU4 = union { const volatile char *Ptr; };
+  TypedefU4 *TU4;
+  UsingU4 *UU4;
   union { const volatile char *Ptr; } *U4;
   (char**)                U4; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'char *'
   (volatile char**)       U4; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'volatile char *'
@@ -146,9 +295,26 @@ void castsWithQualifierMismatches() {
   reinterpret_cast<char**>               (U4); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'char *'
   reinterpret_cast<volatile char**>      (U4); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'volatile char *'
   reinterpret_cast<const char**>         (U4); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const char *'
+
+  (char**)                TU4; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'char *'
+  (volatile char**)       TU4; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'volatile char *'
+  (const char**)          TU4; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const char *'
+  reinterpret_cast<char**>               (TU4); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'char *'
+  reinterpret_cast<volatile char**>      (TU4); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'volatile char *'
+  reinterpret_cast<const char**>         (TU4); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const char *'
+
+  (char**)                UU4; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'char *'
+  (volatile char**)       UU4; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'volatile char *'
+  (const char**)          UU4; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const char *'
+  reinterpret_cast<char**>               (UU4); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'char *'
+  reinterpret_cast<volatile char**>      (UU4); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'volatile char *'
+  reinterpret_cast<const char**>         (UU4); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const char *'
 }
 
-void castsWhenUnionDefinitionIsUnknown(union Unknown *U) {
+typedef union Unknown TypedefUnknown;
+using UsingUnknown = union Unknown;
+
+void castsWhenUnionDefinitionIsUnknown(union Unknown *U, TypedefUnknown *TU, UsingUnknown *UU) {
   (volatile char**)       U; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'volatile char *'
   (const char**)          U; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const char *'
   (const volatile char**) U; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
@@ -163,6 +329,34 @@ void castsWhenUnionDefinitionIsUnknown(union Unknown *U) {
   (PublicDerived2*)       U; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'PublicDerived2'
   (PublicDerived3*)       U; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'PublicDerived3'
 
+  (volatile char**)       TU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'volatile char *'
+  (const char**)          TU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const char *'
+  (const volatile char**) TU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
+  (short*)                TU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'short'
+  (int*)                  TU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'int'
+  (long*)                 TU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'long'
+  (float*)                TU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'float'
+  (double*)               TU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'double'
+  (PublicDerived*)        TU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'PublicDerived'
+  (ProtectedDerived*)     TU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'ProtectedDerived'
+  (PrivateDerived*)       TU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'PrivateDerived'
+  (PublicDerived2*)       TU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'PublicDerived2'
+  (PublicDerived3*)       TU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'PublicDerived3'
+
+  (volatile char**)       UU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'volatile char *'
+  (const char**)          UU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const char *'
+  (const volatile char**) UU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
+  (short*)                UU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'short'
+  (int*)                  UU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'int'
+  (long*)                 UU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'long'
+  (float*)                UU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'float'
+  (double*)               UU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'double'
+  (PublicDerived*)        UU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'PublicDerived'
+  (ProtectedDerived*)     UU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'ProtectedDerived'
+  (PrivateDerived*)       UU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'PrivateDerived'
+  (PublicDerived2*)       UU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'PublicDerived2'
+  (PublicDerived3*)       UU; // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'PublicDerived3'
+
   reinterpret_cast<volatile char**>      (U); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'volatile char *'
   reinterpret_cast<const char**>         (U); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const char *'
   reinterpret_cast<const volatile char**>(U); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
@@ -176,9 +370,37 @@ void castsWhenUnionDefinitionIsUnknown(union Unknown *U) {
   reinterpret_cast<PrivateDerived*>      (U); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'PrivateDerived'
   reinterpret_cast<PublicDerived2*>      (U); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'PublicDerived2'
   reinterpret_cast<PublicDerived3*>      (U); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'PublicDerived3'
+
+  reinterpret_cast<volatile char**>      (TU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'volatile char *'
+  reinterpret_cast<const char**>         (TU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const char *'
+  reinterpret_cast<const volatile char**>(TU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
+  reinterpret_cast<short*>               (TU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'short'
+  reinterpret_cast<int*>                 (TU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'int'
+  reinterpret_cast<long*>                (TU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'long'
+  reinterpret_cast<float*>               (TU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'float'
+  reinterpret_cast<double*>              (TU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'double'
+  reinterpret_cast<PublicDerived*>       (TU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'PublicDerived'
+  reinterpret_cast<ProtectedDerived*>    (TU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'ProtectedDerived'
+  reinterpret_cast<PrivateDerived*>      (TU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'PrivateDerived'
+  reinterpret_cast<PublicDerived2*>      (TU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'PublicDerived2'
+  reinterpret_cast<PublicDerived3*>      (TU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'PublicDerived3'
+
+  reinterpret_cast<volatile char**>      (UU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'volatile char *'
+  reinterpret_cast<const char**>         (UU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const char *'
+  reinterpret_cast<const volatile char**>(UU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'const volatile char *'
+  reinterpret_cast<short*>               (UU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'short'
+  reinterpret_cast<int*>                 (UU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'int'
+  reinterpret_cast<long*>                (UU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'long'
+  reinterpret_cast<float*>               (UU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'float'
+  reinterpret_cast<double*>              (UU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'double'
+  reinterpret_cast<PublicDerived*>       (UU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'PublicDerived'
+  reinterpret_cast<ProtectedDerived*>    (UU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'ProtectedDerived'
+  reinterpret_cast<PrivateDerived*>      (UU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'PrivateDerived'
+  reinterpret_cast<PublicDerived2*>      (UU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'PublicDerived2'
+  reinterpret_cast<PublicDerived3*>      (UU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'PublicDerived3'
 }
 
-void irrelevantCastExpressions(union MyUnion *U) {
+void irrelevantCastExpressions(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {
   long LI;
   unsigned long UL = LI;
   (unsigned long) LI;
@@ -188,10 +410,10 @@ void irrelevantCastExpressions(union MyUnion *U) {
   // It does not matter that the union has a field with the same type
   // as the aliased type. Typedefs and usings are not considered "transparent"
   // in that sense by the check.
-  (short_ptr_typedef) U;
-  (short_ptr_using) U;
-  reinterpret_cast<short_ptr_typedef>(U);
-  reinterpret_cast<short_ptr_using>  (U);
+  (ShortPtrTypedef) U;
+  (ShortPtrUsing) U;
+  reinterpret_cast<ShortPtrTypedef>(U);
+  reinterpret_cast<ShortPtrUsing>(U);
 
   (void*) LI;
   reinterpret_cast<void*>(LI);
@@ -204,6 +426,19 @@ void irrelevantCastExpressions(union MyUnion *U) {
   B = (Base*) D;
   B = reinterpret_cast<Base*>(D);
   B = static_cast<Base*>(D);
+
+  union MyUnion *MU = U;
+  (union MyUnion*) U;
+  reinterpret_cast<union MyUnion*>(U);
+
+  TypedefMyUnion *MTU = TU;
+  (TypedefMyUnion*) TU;
+  reinterpret_cast<TypedefMyUnion*>(TU);
+
+  UsingMyUnion *MUU = UU;
+  (UsingMyUnion*) UU;
+  reinterpret_cast<UsingMyUnion*>(UU);
+
 }
 
 // By default, do not analyze cast expressions where the pointee union
@@ -213,13 +448,13 @@ void irrelevantCastExpressions(union MyUnion *U) {
 #include <pthread.h>
 
 void fromStdNamespace(std::pthread_mutex_t *T) {
-    void *P = T;
-    (void*) T;
-    reinterpret_cast<void*>(T);
+  void *P = T;
+  (void*) T;
+  reinterpret_cast<void*>(T);
 }
 
 void fromStdNamespace(pthread_mutex_t *T) {
-    void *P = T;
-    (void*) T;
-    reinterpret_cast<void*>(T);
+  void *P = T;
+  (void*) T;
+  reinterpret_cast<void*>(T);
 }

@@ -33,13 +33,13 @@ bool UnionPtrCastCheck::isLanguageVersionSupported(const LangOptions &LangOpts) 
 void UnionPtrCastCheck::registerMatchers(MatchFinder *Finder) {
   // Wrapping the filters in a decl ensures that both branches have the same
   // return type, otherwise a compiler error is given.
-  auto stdNamespaceFilter = AnalyzeUnionsFromStdNamespace ? decl(anything()) : decl(unless(isInStdNamespace()));
-  auto systemHeaderFilter = AnalyzeUnionsFromSystemHeaders ? decl(anything()) : decl(unless(isExpansionInSystemHeader()));
-  auto hasPointerToUnionSourceExpr = hasSourceExpression(hasType(pointerType(pointee(hasUnqualifiedDesugaredType(recordType(hasDeclaration(recordDecl(isUnion(), stdNamespaceFilter, systemHeaderFilter).bind(UnionBindName))))))));
-  auto isRelevantCastKindAndSourceExpr = allOf(hasCastKind(CK_BitCast), hasPointerToUnionSourceExpr);
+  auto StdNamespaceFilter = AnalyzeUnionsFromStdNamespace ? decl(anything()) : decl(unless(isInStdNamespace()));
+  auto SystemHeaderFilter = AnalyzeUnionsFromSystemHeaders ? decl(anything()) : decl(unless(isExpansionInSystemHeader()));
+  auto HasPointerToUnionSourceExpr = hasSourceExpression(hasType(pointerType(pointee(hasUnqualifiedDesugaredType(recordType(hasDeclaration(recordDecl(isUnion(), StdNamespaceFilter, SystemHeaderFilter).bind(UnionBindName))))))));
+  auto IsRelevantCastKindAndSourceExpr = allOf(hasCastKind(CK_BitCast), HasPointerToUnionSourceExpr);
 
-  Finder->addMatcher(implicitCastExpr(hasImplicitDestinationType(isAnyPointer()), isRelevantCastKindAndSourceExpr).bind(CastBindName), this);
-  Finder->addMatcher(mapAnyOf(cStyleCastExpr, cxxReinterpretCastExpr).with(allOf(hasDestinationType(isAnyPointer()), isRelevantCastKindAndSourceExpr)).bind(CastBindName), this);
+  Finder->addMatcher(implicitCastExpr(hasImplicitDestinationType(isAnyPointer()), IsRelevantCastKindAndSourceExpr).bind(CastBindName), this);
+  Finder->addMatcher(mapAnyOf(cStyleCastExpr, cxxReinterpretCastExpr).with(allOf(hasDestinationType(isAnyPointer()), IsRelevantCastKindAndSourceExpr)).bind(CastBindName), this);
 }
 
 void UnionPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
@@ -49,10 +49,10 @@ void UnionPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
   assert(Union && "Node for union declaration is not returned in MatchResult!");
   assert(Cast && "Node for cast expression is not returned in MatchResult!");
 
-  const Type *CastTargetType = Cast->getType().getTypePtrOrNull();
-  if (const auto *P = llvm::dyn_cast<PointerType>(CastTargetType))
-    if (shouldWarn(Union, P->getPointeeType(), CastTargetType->getPointeeCXXRecordDecl()))
-      diag(Cast->getSubExpr()->getBeginLoc(), "the union pointed to by this expression has no field with the type '%0'") << P->getPointeeType().getAsString();
+  const Type *CastType = Cast->getType().getTypePtrOrNull();
+  if (const auto *CastPointerType = llvm::dyn_cast<PointerType>(CastType))
+    if (shouldWarn(Union, CastPointerType->getPointeeType(), CastType->getPointeeCXXRecordDecl()))
+      diag(Cast->getSubExpr()->getBeginLoc(), "the union pointed to by this expression has no field with the type '%0'") << CastPointerType->getPointeeType().getAsString();
 }
 
 static bool fieldDerivesFrom(const QualType FieldQualType, const CXXRecordDecl *PointeeCXXRecordDecl) {
@@ -63,15 +63,15 @@ static bool fieldDerivesFrom(const QualType FieldQualType, const CXXRecordDecl *
 }
 
 bool UnionPtrCastCheck::shouldWarn(const RecordDecl *Union, const QualType PointeeQualType, const CXXRecordDecl *PointeeCXXRecordDecl) const {
-  if (const auto *T = llvm::dyn_cast<BuiltinType>(PointeeQualType.getTypePtr())) {
-    if (AlwaysAllowCastToVoidPtr && T->isVoidType()) return false;
-    if (AlwaysAllowCastToCharPtr && T->isCharType()) return false;
+  if (const auto *PointeeType = llvm::dyn_cast<BuiltinType>(PointeeQualType.getTypePtr())) {
+    if (AlwaysAllowCastToVoidPtr && PointeeType->isVoidType()) return false;
+    if (AlwaysAllowCastToCharPtr && PointeeType->isCharType()) return false;
   }
 
   if (Union->isCompleteDefinition()) {
-    for (const FieldDecl *FD : Union->fields()) {
-      if (PointeeQualType == FD->getType()) return false;
-      if (fieldDerivesFrom(FD->getType(), PointeeCXXRecordDecl)) return false;
+    for (const FieldDecl *Field : Union->fields()) {
+      if (PointeeQualType == Field->getType()) return false;
+      if (fieldDerivesFrom(Field->getType(), PointeeCXXRecordDecl)) return false;
     }
   }
 
