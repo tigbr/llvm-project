@@ -1,6 +1,7 @@
+// RUN: %check_clang_tidy -std=c++98-or-later %s bugprone-union-ptr-cast %t \
 // RUN:   -config='{CheckOptions: { \
 // RUN:     bugprone-union-ptr-cast.AlwaysAllowCastToVoidPtr: false, \
-// RUN:  }}' --
+// RUN:  }}'
 
 union MyUnion {
     short s;
