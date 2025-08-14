@@ -32,7 +32,7 @@ private:
   const bool AnalyzeUnionsFromStdNamespace;
   const bool AnalyzeUnionsFromSystemHeaders;
 
-  void analyzeCast(const RecordDecl *Union, const Expr *SubExpression, QualType PointeeQualType, const CXXRecordDecl *PointeeCXXRecordDecl);
+  bool shouldWarn(const RecordDecl *Union, const QualType PointeeQualType, const CXXRecordDecl *PointeeCXXRecordDecl) const;
 };
 
 } // namespace clang::tidy::bugprone

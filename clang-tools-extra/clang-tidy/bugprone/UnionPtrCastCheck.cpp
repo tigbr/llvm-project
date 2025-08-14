@@ -45,27 +45,37 @@ void UnionPtrCastCheck::registerMatchers(MatchFinder *Finder) {
 void UnionPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Union = Result.Nodes.getNodeAs<RecordDecl>(UnionBindName);
   const auto *Cast = Result.Nodes.getNodeAs<CastExpr>(CastBindName);
+
   assert(Union && "Node for union declaration is not returned in MatchResult!");
   assert(Cast && "Node for cast expression is not returned in MatchResult!");
+
   const Type *CastTargetType = Cast->getType().getTypePtrOrNull();
   if (const auto *P = llvm::dyn_cast<PointerType>(CastTargetType))
-    analyzeCast(Union, Cast->getSubExpr(), P->getPointeeType(), CastTargetType->getPointeeCXXRecordDecl());
+    if (shouldWarn(Union, P->getPointeeType(), CastTargetType->getPointeeCXXRecordDecl()))
+      diag(Cast->getSubExpr()->getBeginLoc(), "the union pointed to by this expression has no field with the type '%0'") << P->getPointeeType().getAsString();
 }
 
-void UnionPtrCastCheck::analyzeCast(const RecordDecl *Union, const Expr *SubExpression, QualType PointeeQualType, const CXXRecordDecl *PointeeCXXRecordDecl) {
+static bool fieldDerivesFrom(const QualType FieldQualType, const CXXRecordDecl *PointeeCXXRecordDecl) {
+  const Type *FieldType = FieldQualType.getTypePtr();
+  const CXXRecordDecl *CXXD = llvm::dyn_cast<CXXRecordDecl>(FieldType ? FieldType->getAsCXXRecordDecl() : nullptr);
+  if (CXXD && PointeeCXXRecordDecl && CXXD->isDerivedFrom(PointeeCXXRecordDecl)) return true;
+  return false;
+}
+
+bool UnionPtrCastCheck::shouldWarn(const RecordDecl *Union, const QualType PointeeQualType, const CXXRecordDecl *PointeeCXXRecordDecl) const {
   if (const auto *T = llvm::dyn_cast<BuiltinType>(PointeeQualType.getTypePtr())) {
-    if (AlwaysAllowCastToVoidPtr && T->isVoidType()) return;
-    if (AlwaysAllowCastToCharPtr && T->isCharType()) return;
+    if (AlwaysAllowCastToVoidPtr && T->isVoidType()) return false;
+    if (AlwaysAllowCastToCharPtr && T->isCharType()) return false;
   }
+
   if (Union->isCompleteDefinition()) {
-    for (FieldDecl *D : Union->fields()) {
-      if (PointeeQualType == D->getType()) return;
-      const Type *FieldType = D->getType().getTypePtr();
-      const CXXRecordDecl *CXXD = llvm::dyn_cast<CXXRecordDecl>(FieldType ? FieldType->getAsCXXRecordDecl() : nullptr);
-      if (CXXD && PointeeCXXRecordDecl && CXXD->isDerivedFrom(PointeeCXXRecordDecl)) return;
+    for (const FieldDecl *FD : Union->fields()) {
+      if (PointeeQualType == FD->getType()) return false;
+      if (fieldDerivesFrom(FD->getType(), PointeeCXXRecordDecl)) return false;
     }
   }
-  diag(SubExpression->getBeginLoc(), "the union pointed to by this expression has no field with the type '%0'") << PointeeQualType.getAsString();
+
+  return true;
 }
 
 } // namespace clang::tidy::bugprone
