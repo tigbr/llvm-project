@@ -46,8 +46,8 @@ void UnionPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Union = Result.Nodes.getNodeAs<RecordDecl>(UnionBindName);
   const auto *Cast = Result.Nodes.getNodeAs<CastExpr>(CastBindName);
 
-  assert(Union && "Node for union declaration is not returned in MatchResult!");
-  assert(Cast && "Node for cast expression is not returned in MatchResult!");
+  assert(Union && "Matched union declaration is not returned in MatchResult!");
+  assert(Cast && "Matched cast expression is not returned in MatchResult!");
 
   const Type *CastType = Cast->getType().getTypePtrOrNull();
   if (const auto *CastPointerType = llvm::dyn_cast<PointerType>(CastType))
