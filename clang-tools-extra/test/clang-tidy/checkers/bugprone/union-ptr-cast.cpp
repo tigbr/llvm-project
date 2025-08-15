@@ -178,12 +178,8 @@ void castToBaseClassPointerTest() {
   reinterpret_cast<Base*>(UU5);
 }
 
-//
-// Test cases where a diag message is expected.
-//
-
 void optionDependentDefaultBehaviors(union MyUnion *U) {
-  // This implicit cast does not give an error in C++ mode so it included here
+  // This implicit cast does not give an error in C++, so it is included here.
   void *v = U;
 
   (char*) U;
@@ -193,14 +189,71 @@ void optionDependentDefaultBehaviors(union MyUnion *U) {
   reinterpret_cast<void*>(U);
 }
 
-//
-// Test cases where a diag message is expected.
-//
+// By default, do not analyze cast expressions where the pointee union
+// comes from the std namespace or from a system header file.
 
-void castsToTypesWithNoCorresspondingFieldInUnion(union MyUnion *U) {
+#include "stdnamespace.h"
+#include <pthread.h>
+
+void fromStdNamespace(std::pthread_mutex_t *T) {
+  void *P = T;
+  (void*) T;
+  reinterpret_cast<void*>(T);
+}
+
+void fromStdNamespace(pthread_mutex_t *T) {
+  void *P = T;
+  (void*) T;
+  reinterpret_cast<void*>(T);
+}
+
+void irrelevantCastExpressions(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {
+  long LI;
+  unsigned long UL = LI;
+  (unsigned long) LI;
+  // This is already a compile time error.
+  // reinterpret_cast<unsigned long>(LI);
+
+  // It does not matter that the union has a field with the same type
+  // as the aliased type. Typedefs and usings are not considered "transparent"
+  // in that sense by the check.
+  (ShortPtrTypedef) U;
+  (ShortPtrUsing) U;
+  reinterpret_cast<ShortPtrTypedef>(U);
+  reinterpret_cast<ShortPtrUsing>(U);
+
+  (void*) LI;
+  reinterpret_cast<void*>(LI);
+
+  // Should not get analyzed, because D does not point to a union.
+  // Also 0 instead of nullptr, because the latter exists only from C++11.
+  Base *B = 0;
+  PublicDerived *D = 0;
+  B = D;
+  B = (Base*) D;
+  B = reinterpret_cast<Base*>(D);
+  B = static_cast<Base*>(D);
+
+  union MyUnion *MU = U;
+  (union MyUnion*) U;
+  reinterpret_cast<union MyUnion*>(U);
+
+  TypedefMyUnion *MTU = TU;
+  (TypedefMyUnion*) TU;
+  reinterpret_cast<TypedefMyUnion*>(TU);
+
+  UsingMyUnion *MUU = UU;
+  (UsingMyUnion*) UU;
+  reinterpret_cast<UsingMyUnion*>(UU);
+}
+
+void castsToTypesWithNoCorresspondingFieldInUnion(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {
   (long*) U; // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'long'
-
+  (long*) TU; // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'long'
+  (long*) UU; // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'long'
   reinterpret_cast<long*>(U); // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'long'
+  reinterpret_cast<long*>(TU); // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'long'
+  reinterpret_cast<long*>(UU); // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'long'
 }
 
 void castsWithQualifierMismatches() {
@@ -398,63 +451,4 @@ void castsWhenUnionDefinitionIsUnknown(union Unknown *U, TypedefUnknown *TU, Usi
   reinterpret_cast<PrivateDerived*>      (UU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'PrivateDerived'
   reinterpret_cast<PublicDerived2*>      (UU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'PublicDerived2'
   reinterpret_cast<PublicDerived3*>      (UU); // CHECK-MESSAGES: :[[@LINE]]:43: warning: the union pointed to by this expression has no field with the type 'PublicDerived3'
-}
-
-void irrelevantCastExpressions(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {
-  long LI;
-  unsigned long UL = LI;
-  (unsigned long) LI;
-  // This is already a compile time error.
-  // reinterpret_cast<unsigned long>(LI);
-
-  // It does not matter that the union has a field with the same type
-  // as the aliased type. Typedefs and usings are not considered "transparent"
-  // in that sense by the check.
-  (ShortPtrTypedef) U;
-  (ShortPtrUsing) U;
-  reinterpret_cast<ShortPtrTypedef>(U);
-  reinterpret_cast<ShortPtrUsing>(U);
-
-  (void*) LI;
-  reinterpret_cast<void*>(LI);
-
-  // Should not get analyzed, because D does not point to a union.
-  // Also 0 instead of nullptr, because the latter exists only from C++11.
-  Base *B = 0;
-  PublicDerived *D = 0;
-  B = D;
-  B = (Base*) D;
-  B = reinterpret_cast<Base*>(D);
-  B = static_cast<Base*>(D);
-
-  union MyUnion *MU = U;
-  (union MyUnion*) U;
-  reinterpret_cast<union MyUnion*>(U);
-
-  TypedefMyUnion *MTU = TU;
-  (TypedefMyUnion*) TU;
-  reinterpret_cast<TypedefMyUnion*>(TU);
-
-  UsingMyUnion *MUU = UU;
-  (UsingMyUnion*) UU;
-  reinterpret_cast<UsingMyUnion*>(UU);
-
-}
-
-// By default, do not analyze cast expressions where the pointee union
-// comes from the std namespace or from a system header file.
-
-#include "stdnamespace.h"
-#include <pthread.h>
-
-void fromStdNamespace(std::pthread_mutex_t *T) {
-  void *P = T;
-  (void*) T;
-  reinterpret_cast<void*>(T);
-}
-
-void fromStdNamespace(pthread_mutex_t *T) {
-  void *P = T;
-  (void*) T;
-  reinterpret_cast<void*>(T);
 }

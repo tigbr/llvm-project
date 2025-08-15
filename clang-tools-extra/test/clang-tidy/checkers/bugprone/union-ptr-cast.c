@@ -59,6 +59,36 @@ void optionDependentDefaultBehaviors(union MyUnion *U, TypedefMyUnion *TU) {
   (void*) TU;
 }
 
+// By default, do not analyze cast expressions where the pointee union
+// comes from from a system header file. C has no namespaces, so that
+// is omitted from this file.
+
+#include <pthread.h>
+
+void fromSystemHeaderFile(pthread_mutex_t *T) {
+  void *P = T;
+  (void*) T;
+}
+
+void irrelevantCastExpressions(union MyUnion *U, TypedefMyUnion *TU) {
+  long LI;
+  unsigned long UL = LI;
+  (unsigned long) LI;
+  (void*) LI;
+
+  // It does not matter that the union has a field with the same type
+  // as the aliased type. Typedefs and usings are not considered "transparent"
+  // in that sense by the check.
+  ShortPtrTypedef V5 = U;
+  (ShortPtrTypedef) U;
+
+  union MyUnion *MU = U;
+  (union MyUnion*) U;
+
+  TypedefMyUnion *MTU = TU;
+  (TypedefMyUnion*) TU;
+}
+
 void castsWithQualifierMismatches() {
   typedef union { char *Ptr; } TypedefU1;
   TypedefU1 *TU1;
@@ -167,31 +197,4 @@ void castWithUnknownUnionDefinition(union Unknown *U, TypedefUnknown *TU) {
   (long*)   TU; // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'long'
   (float*)  TU; // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'float'
   (double*) TU; // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'double'
-}
-
-void irrelevantCastExpressions(union MyUnion *U) {
-  long LI;
-  unsigned long UL = LI;
-  (unsigned long) LI;
-  (void*) LI;
-
-  // It does not matter that the union has a field with the same type
-  // as the aliased type. Typedefs and usings are not considered "transparent"
-  // in that sense by the check.
-  ShortPtrTypedef V5 = U;
-  (ShortPtrTypedef) U;
-
-  union MyUnion *MU = U;
-  (union MyUnion*) U;
-}
-
-// By default, do not analyze cast expressions where the pointee union
-// comes from from a system header file. C has no namespaces, so that
-// is omitted from this file.
-
-#include <pthread.h>
-
-void fromSystemHeaderFile(pthread_mutex_t *T) {
-  void *P = T;
-  (void*) T;
 }
