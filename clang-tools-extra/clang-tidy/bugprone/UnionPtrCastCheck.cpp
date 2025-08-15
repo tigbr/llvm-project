@@ -17,10 +17,10 @@ static constexpr llvm::StringLiteral AlwaysAllowCastToVoidPtrOptionName =
     "AlwaysAllowCastToVoidPtr";
 static constexpr llvm::StringLiteral AlwaysAllowCastToCharPtrOptionName =
     "AlwaysAllowCastToCharPtr";
-static constexpr llvm::StringLiteral AnalyzeUnionsFromStdNamespaceOptionName =
-    "AnalyzeUnionsFromStdNamespace";
-static constexpr llvm::StringLiteral AnalyzeUnionsFromSystemHeadersOptionName =
-    "AnalyzeUnionsFromSystemHeaders";
+static constexpr llvm::StringLiteral IgnoreIfUnionIsFromStdNamespaceOptionName =
+    "IgnoreIfUnionIsFromStdNamespace";
+static constexpr llvm::StringLiteral IgnoreIfUnionIsFromSystemHeaderOptionName =
+    "IgnoreIfUnionIsFromSystemHeader";
 static constexpr llvm::StringLiteral UnionBindName = "union";
 static constexpr llvm::StringLiteral CastBindName = "cast";
 
@@ -30,10 +30,10 @@ UnionPtrCastCheck::UnionPtrCastCheck(StringRef Name, ClangTidyContext *Context)
           Options.get(AlwaysAllowCastToVoidPtrOptionName, true)),
       AlwaysAllowCastToCharPtr(
           Options.get(AlwaysAllowCastToCharPtrOptionName, true)),
-      AnalyzeUnionsFromStdNamespace(
-          Options.get(AnalyzeUnionsFromStdNamespaceOptionName, false)),
-      AnalyzeUnionsFromSystemHeaders(
-          Options.get(AnalyzeUnionsFromSystemHeadersOptionName, false)) {}
+      IgnoreIfUnionIsFromStdNamespace(
+          Options.get(IgnoreIfUnionIsFromStdNamespaceOptionName, true)),
+      IgnoreIfUnionIsFromSystemHeader(
+          Options.get(IgnoreIfUnionIsFromSystemHeaderOptionName, true)) {}
 
 bool UnionPtrCastCheck::isLanguageVersionSupported(
     const LangOptions &LangOpts) const {
@@ -43,12 +43,12 @@ bool UnionPtrCastCheck::isLanguageVersionSupported(
 void UnionPtrCastCheck::registerMatchers(MatchFinder *Finder) {
   // Wrapping the filters in a decl ensures that both branches have the same
   // return type, otherwise a compiler error is given.
-  auto StdNamespaceFilter = AnalyzeUnionsFromStdNamespace
-                                ? decl(anything())
-                                : decl(unless(isInStdNamespace()));
-  auto SystemHeaderFilter = AnalyzeUnionsFromSystemHeaders
-                                ? decl(anything())
-                                : decl(unless(isExpansionInSystemHeader()));
+  auto StdNamespaceFilter = IgnoreIfUnionIsFromStdNamespace
+                                ? decl(unless(isInStdNamespace()))
+                                : decl(anything());
+  auto SystemHeaderFilter = IgnoreIfUnionIsFromSystemHeader
+                                ? decl(unless(isExpansionInSystemHeader()))
+                                : decl(anything());
   auto HasPointerToUnionSourceExpr = hasSourceExpression(hasType(
       pointerType(pointee(hasUnqualifiedDesugaredType(recordType(hasDeclaration(
           recordDecl(isUnion(), StdNamespaceFilter, SystemHeaderFilter)

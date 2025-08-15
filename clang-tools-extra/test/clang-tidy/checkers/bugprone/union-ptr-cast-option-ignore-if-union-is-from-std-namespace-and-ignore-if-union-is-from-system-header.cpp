@@ -1,8 +1,8 @@
 // RUN: %check_clang_tidy -std=c++98-or-later %s bugprone-union-ptr-cast %t \
 // RUN:   --config='{CheckOptions: { \
 // RUN:     bugprone-union-ptr-cast.AlwaysAllowCastToVoidPtr: false, \
-// RUN:     bugprone-union-ptr-cast.AnalyzeUnionsFromStdNamespace: true, \
-// RUN:     bugprone-union-ptr-cast.AnalyzeUnionsFromSystemHeaders: true \
+// RUN:     bugprone-union-ptr-cast.IgnoreIfUnionIsFromStdNamespace: false, \
+// RUN:     bugprone-union-ptr-cast.IgnoreIfUnionIsFromSystemHeader: false \
 // RUN:  }}' -- \
 // RUN: -I%S/Inputs/union-ptr-cast \
 // RUN: -isystem %S/Inputs/union-ptr-cast/system
