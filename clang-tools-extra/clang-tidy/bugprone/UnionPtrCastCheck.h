@@ -13,9 +13,9 @@
 
 namespace clang::tidy::bugprone {
 
-/// Gives warnings for implicit cast, C-style cast and ``reinterpret_cast``
-/// expressions between pointers, where the source is a pointer to a ``union``,
-/// and that ``union`` has no field with the same type as target's pointee type.
+/// Gives warnings for implicit cast, C-style cast and `reinterpret_cast`
+/// expressions between pointers, where the source is a pointer to a `union`,
+/// and that `union` has no field with the same type as target's pointee type.
 ///
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/bugprone/union-ptr-cast.html
@@ -32,7 +32,8 @@ private:
   const bool AnalyzeUnionsFromStdNamespace;
   const bool AnalyzeUnionsFromSystemHeaders;
 
-  bool shouldWarn(const RecordDecl *Union, const QualType PointeeQualType, const CXXRecordDecl *PointeeCXXRecordDecl) const;
+  bool shouldWarn(const RecordDecl *Union, const QualType PointeeQualType,
+                  const CXXRecordDecl *PointeeCXXRecordDecl) const;
 };
 
 } // namespace clang::tidy::bugprone
