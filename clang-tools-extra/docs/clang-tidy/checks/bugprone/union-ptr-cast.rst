@@ -4,8 +4,9 @@ bugprone-union-ptr-cast
 =======================
 
 Gives warnings for implicit cast, C-style cast and ``reinterpret_cast``
-expressions between pointers, where the source type is a pointer to a ``union``,
-and that ``union`` has no field with the same type as the target's pointee type.
+expressions between pointers, where the source type is a pointer to
+a ``union``, and that ``union`` has no field with the same type as the
+target's pointee type.
 
 .. code-block:: c++
 
@@ -28,24 +29,25 @@ and that ``union`` has no field with the same type as the target's pointee type.
 
     reinterpret_cast<int*>(U);
     reinterpret_cast<float*>(U);
-    reinterpret_cast<short*>(U); // warning: there is no field with the type 'short' in this union
-    reinterpret_cast<double*>(U); // warning: there is no field with the type 'double' in this union
+    reinterpret_cast<short*>(U); // warning: the union pointed to by this expression has no field with the type 'short'
+    reinterpret_cast<double*>(U); // warning: the union pointed to by this expression has no field with the type 'double'
   }
 
-The check is aware of C++ inheritance. It accepts casts where the ``union`` has a field whose type is a subtype of the cast target pointee type and does not have a field with exactly the cast target pointee type.
+The check is aware of C++ inheritance. A cast is also accepted if the ``union`` has a field whose type is only a subtype of the cast target's pointee type.
 
 .. code-block:: c++
 
-  class Base { };
-  class Derived : public Base { };
+  class Base { /* ... */ };
+  class Derived : public Base { /* ... */ };
 
   union MyUnion {
-    Derived *D;
+    Derived D;
   };
 
   void foo(union MyUnion *U) {
     Base *B;
-    B = U;
+    // No warning, despite MyUnion not having a field with the type B,
+    // as the pointee type of B is an ancestor type of field D's type.
     B = (Base*) U;
     B = reinterpret_cast<Base*>(U);
   }
