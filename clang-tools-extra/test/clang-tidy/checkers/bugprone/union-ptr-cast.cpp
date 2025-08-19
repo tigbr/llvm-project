@@ -141,7 +141,7 @@ void castToBaseClassPointerTest() {
   reinterpret_cast<Base*>(TU2);
   reinterpret_cast<Base*>(UU2);
 
-  union { PublicDerived3 field; } *U3; 
+  union { PublicDerived3 field; } *U3;
   typedef union { PublicDerived3 field; } TypedefU3;
   TypedefU3 *TU3;
   using UsingU3 = union { PublicDerived3 field; };
@@ -153,7 +153,7 @@ void castToBaseClassPointerTest() {
   reinterpret_cast<Base*>(TU3);
   reinterpret_cast<Base*>(UU3);
 
-  union { ProtectedDerived field; } *U4; 
+  union { ProtectedDerived field; } *U4;
   typedef union { PublicDerived3 field; } TypedefU4;
   TypedefU4 *TU4;
   using UsingU4 = union { PublicDerived3 field; };
@@ -165,7 +165,7 @@ void castToBaseClassPointerTest() {
   reinterpret_cast<Base*>(TU4);
   reinterpret_cast<Base*>(UU4);
 
-  union { PrivateDerived field; } *U5; 
+  union { PrivateDerived field; } *U5;
   typedef union { PrivateDerived field; } TypedefU5;
   TypedefU5 *TU5;
   using UsingU5 = union { PrivateDerived field; };
@@ -178,15 +178,27 @@ void castToBaseClassPointerTest() {
   reinterpret_cast<Base*>(UU5);
 }
 
-void optionDependentDefaultBehaviors(union MyUnion *U) {
-  // This implicit cast does not give an error in C++, so it is included here.
-  void *v = U;
+void optionDependentDefaultBehaviors(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {
+  // These implicit casts do not give an error in C++, so it is included here.
+  void *V = U;
+  V = TU;
+  V = UU;
 
   (char*) U;
+  (char*) TU;
+  (char*) UU;
+
   (void*) U;
+  (void*) TU;
+  (void*) UU;
 
   reinterpret_cast<char*>(U);
+  reinterpret_cast<char*>(TU);
+  reinterpret_cast<char*>(UU);
+
   reinterpret_cast<void*>(U);
+  reinterpret_cast<void*>(TU);
+  reinterpret_cast<void*>(UU);
 }
 
 // By default, do not analyze cast expressions where the pointee union
