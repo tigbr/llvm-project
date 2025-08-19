@@ -85,9 +85,9 @@ void UnionPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
           << CastPointerType->getPointeeType().getAsString();
 }
 
-static bool fieldDerivesFrom(const QualType FieldQualType,
+static bool fieldDerivesFrom(const FieldDecl *Field,
                              const CXXRecordDecl *PointeeCXXRecordDecl) {
-  const Type *FieldType = FieldQualType.getTypePtr();
+  const Type *FieldType = Field->getType().getTypePtr();
   const CXXRecordDecl *CXXD = llvm::dyn_cast<CXXRecordDecl>(
       FieldType ? FieldType->getAsCXXRecordDecl() : nullptr);
   if (CXXD && PointeeCXXRecordDecl && CXXD->isDerivedFrom(PointeeCXXRecordDecl))
@@ -110,7 +110,7 @@ bool UnionPtrCastCheck::shouldWarn(
     for (const FieldDecl *Field : Union->fields()) {
       if (PointeeQualType == Field->getType())
         return false;
-      if (fieldDerivesFrom(Field->getType(), PointeeCXXRecordDecl))
+      if (fieldDerivesFrom(Field, PointeeCXXRecordDecl))
         return false;
     }
   }
