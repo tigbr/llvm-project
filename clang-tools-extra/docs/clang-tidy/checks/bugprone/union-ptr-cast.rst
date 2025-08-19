@@ -44,12 +44,27 @@ The check is aware of C++ inheritance. A cast is also accepted if the ``union`` 
     Derived D;
   };
 
-  void foo(union MyUnion *U) {
+  void example(union MyUnion *U) {
     Base *B;
     // No warning, despite MyUnion not having a field with the type B,
     // as the pointee type of B is an ancestor type of field D's type.
     B = (Base*) U;
     B = reinterpret_cast<Base*>(U);
+  }
+
+The pointer may be hidden behind (potentially multiple) ``typedef`` or a ``using`` statements.
+
+.. code-block:: c++
+
+  typedef short *ShortPtr;
+
+  union MyUnion {
+    void *P;
+    float F;
+  };
+
+  void example(union MyUnion *U) {
+    ShortPtr S = (ShortPtr) U; // warning: the union pointed to by this expression has no field with the type 'short'
   }
 
 Options
