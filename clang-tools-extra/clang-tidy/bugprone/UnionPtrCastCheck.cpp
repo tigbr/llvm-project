@@ -45,10 +45,10 @@ void UnionPtrCastCheck::registerMatchers(MatchFinder *Finder) {
   // return type, otherwise a compiler error is given.
   auto StdNamespaceFilter = IgnoreIfUnionIsFromStdNamespace
                                 ? decl(unless(isInStdNamespace()))
-                                : decl(anything());
+                                : decl();
   auto SystemHeaderFilter = IgnoreIfUnionIsFromSystemHeader
                                 ? decl(unless(isExpansionInSystemHeader()))
-                                : decl(anything());
+                                : decl();
   auto HasPointerToUnionSourceExpr = hasSourceExpression(hasType(
       pointerType(pointee(hasUnqualifiedDesugaredType(recordType(hasDeclaration(
           recordDecl(isUnion(), StdNamespaceFilter, SystemHeaderFilter)
