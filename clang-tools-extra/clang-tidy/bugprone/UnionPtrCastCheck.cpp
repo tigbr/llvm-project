@@ -68,38 +68,73 @@ void UnionPtrCastCheck::registerMatchers(MatchFinder *Finder) {
                      this);
 }
 
+static const PointerType* getCastTargetPointerType(const CastExpr *Cast, const MatchFinder::MatchResult &Result) {
+#if 0
+  QualType Prev;
+  QualType Current = Cast->getType();
+  do {
+    Prev = Current;
+    Current.dump();
+    if (const PointerType *P = llvm::dyn_cast<PointerType>(Current.getTypePtrOrNull())) {
+      llvm::errs() << "Gave diag: " << AnalyzeCast(Union, Cast->getSubExpr(), P->getPointeeType(), Current.getTypePtrOrNull()->getPointeeCXXRecordDecl()) << "\n";
+      Current = P->getPointeeType();
+    } else if (AllowCastToUnderlyingAliasedType) {
+      Current = Current.getSingleStepDesugaredType(*Result.Context);
+    } else if (const auto *E = llvm::dyn_cast<ElaboratedType>(Current.getTypePtrOrNull())) {
+      AnalyzeCast(Union, Cast->getSubExpr(), E->getNamedType(), Current.getTypePtrOrNull()->getPointeeCXXRecordDecl());
+    }
+  } while ((Current != Prev));
+#else
+  QualType CastQualType = Cast->getType();
+  const PointerType *CastPointerType = nullptr;
+  do {
+    CastPointerType = dyn_cast_or_null<PointerType>(CastQualType.getTypePtrOrNull());
+    llvm::errs() << CastPointerType << '\n';
+    if (const auto *ET = dyn_cast_or_null<ElaboratedType>(CastPointerType)) {
+      CastQualType = ET->getNamedType();
+    } else {
+      CastQualType = CastQualType.getSingleStepDesugaredType(*Result.Context);
+    }
+  } while (!CastPointerType);
+  llvm::errs() << "Return " << CastPointerType << '\n';
+  return CastPointerType;
+#endif
+}
+
 void UnionPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Union = Result.Nodes.getNodeAs<RecordDecl>(UnionBindName);
   const auto *Cast = Result.Nodes.getNodeAs<CastExpr>(CastBindName);
+  const PointerType *T = getCastTargetPointerType(Cast, Result);
 
-  assert(Union && "Matched union declaration is not returned in MatchResult!");
-  assert(Cast && "Matched cast expression is not returned in MatchResult!");
+  llvm::errs() << "T before assert " << T << '\n';
+  assert(Union && "Union declaration should be returned in MatchResult!");
+  assert(Cast && "Cast expression should be returned in MatchResult!");
+  // assert(T && "The target of the cast expression should be a pointer type!");
+  llvm::errs() << "T after assert " << T << '\n';
 
-  const Type *CastType = Cast->getType().getTypePtrOrNull();
-  if (const auto *CastPointerType = llvm::dyn_cast<PointerType>(CastType))
-    if (shouldWarn(Union, CastPointerType->getPointeeType(),
-                   CastType->getPointeeCXXRecordDecl()))
-      diag(Cast->getSubExpr()->getBeginLoc(),
-           "the union pointed to by this expression has no field with the type "
-           "'%0'")
-          << CastPointerType->getPointeeType().getAsString();
+  if (shouldWarn(T, Union))
+    diag(Cast->getSubExpr()->getBeginLoc(),
+         "the union pointed to by this expression has no field with the type "
+         "'%0'") << T->getPointeeType().getAsString();
 }
 
 static bool fieldDerivesFrom(const FieldDecl *Field,
                              const CXXRecordDecl *PointeeCXXRecordDecl) {
   const Type *FieldType = Field->getType().getTypePtr();
-  const CXXRecordDecl *CXXD = llvm::dyn_cast<CXXRecordDecl>(
+  const CXXRecordDecl *CXXD = dyn_cast<CXXRecordDecl>(
       FieldType ? FieldType->getAsCXXRecordDecl() : nullptr);
   if (CXXD && PointeeCXXRecordDecl && CXXD->isDerivedFrom(PointeeCXXRecordDecl))
     return true;
   return false;
 }
 
-bool UnionPtrCastCheck::shouldWarn(
-    const RecordDecl *Union, const QualType PointeeQualType,
-    const CXXRecordDecl *PointeeCXXRecordDecl) const {
+bool UnionPtrCastCheck::shouldWarn(const PointerType *Target, const RecordDecl *Union) const {
+  llvm::errs() << "shouldWarn " << Target << '\n';
+  if (!Target) return false;
+  QualType PointeeQualType = Target->getPointeeType();
+;
   if (const auto *PointeeType =
-          llvm::dyn_cast<BuiltinType>(PointeeQualType.getTypePtr())) {
+          dyn_cast<BuiltinType>(PointeeQualType.getTypePtr())) {
     if (AlwaysAllowCastToVoidPtr && PointeeType->isVoidType())
       return false;
     if (AlwaysAllowCastToCharPtr && PointeeType->isCharType())
@@ -110,7 +145,7 @@ bool UnionPtrCastCheck::shouldWarn(
     for (const FieldDecl *Field : Union->fields()) {
       if (PointeeQualType == Field->getType())
         return false;
-      if (fieldDerivesFrom(Field, PointeeCXXRecordDecl))
+      if (fieldDerivesFrom(Field, Target->getPointeeCXXRecordDecl()))
         return false;
     }
   }

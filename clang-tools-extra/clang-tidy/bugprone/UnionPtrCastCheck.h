@@ -33,8 +33,7 @@ private:
   const bool IgnoreIfUnionIsFromStdNamespace;
   const bool IgnoreIfUnionIsFromSystemHeader;
 
-  bool shouldWarn(const RecordDecl *Union, const QualType PointeeQualType,
-                  const CXXRecordDecl *PointeeCXXRecordDecl) const;
+  bool shouldWarn(const PointerType *CastTargetPointerType, const RecordDecl *Union) const;
 };
 
 } // namespace clang::tidy::bugprone
