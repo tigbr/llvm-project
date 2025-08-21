@@ -68,49 +68,31 @@ void UnionPtrCastCheck::registerMatchers(MatchFinder *Finder) {
                      this);
 }
 
-static const PointerType* getCastTargetPointerType(const CastExpr *Cast, const MatchFinder::MatchResult &Result) {
-#if 0
+// Peel off typedef or using layers one at a time until a PointerType is found.
+static const PointerType* getCastTargetPointerType(const CastExpr *Cast, const ASTContext &ASTCtx) {
   QualType Prev;
-  QualType Current = Cast->getType();
-  do {
-    Prev = Current;
-    Current.dump();
-    if (const PointerType *P = llvm::dyn_cast<PointerType>(Current.getTypePtrOrNull())) {
-      llvm::errs() << "Gave diag: " << AnalyzeCast(Union, Cast->getSubExpr(), P->getPointeeType(), Current.getTypePtrOrNull()->getPointeeCXXRecordDecl()) << "\n";
-      Current = P->getPointeeType();
-    } else if (AllowCastToUnderlyingAliasedType) {
-      Current = Current.getSingleStepDesugaredType(*Result.Context);
-    } else if (const auto *E = llvm::dyn_cast<ElaboratedType>(Current.getTypePtrOrNull())) {
-      AnalyzeCast(Union, Cast->getSubExpr(), E->getNamedType(), Current.getTypePtrOrNull()->getPointeeCXXRecordDecl());
-    }
-  } while ((Current != Prev));
-#else
   QualType CastQualType = Cast->getType();
   const PointerType *CastPointerType = nullptr;
   do {
+    Prev = CastQualType;
     CastPointerType = dyn_cast_or_null<PointerType>(CastQualType.getTypePtrOrNull());
-    llvm::errs() << CastPointerType << '\n';
-    if (const auto *ET = dyn_cast_or_null<ElaboratedType>(CastPointerType)) {
+    if (const auto *ET = dyn_cast_or_null<ElaboratedType>(CastQualType.getTypePtrOrNull())) {
       CastQualType = ET->getNamedType();
     } else {
-      CastQualType = CastQualType.getSingleStepDesugaredType(*Result.Context);
+      CastQualType = CastQualType.getSingleStepDesugaredType(ASTCtx);
     }
-  } while (!CastPointerType);
-  llvm::errs() << "Return " << CastPointerType << '\n';
+  } while ((Prev != CastQualType) && !CastPointerType);
   return CastPointerType;
-#endif
 }
 
 void UnionPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Union = Result.Nodes.getNodeAs<RecordDecl>(UnionBindName);
   const auto *Cast = Result.Nodes.getNodeAs<CastExpr>(CastBindName);
-  const PointerType *T = getCastTargetPointerType(Cast, Result);
+  const PointerType *T = getCastTargetPointerType(Cast, *Result.Context);
 
-  llvm::errs() << "T before assert " << T << '\n';
   assert(Union && "Union declaration should be returned in MatchResult!");
   assert(Cast && "Cast expression should be returned in MatchResult!");
-  // assert(T && "The target of the cast expression should be a pointer type!");
-  llvm::errs() << "T after assert " << T << '\n';
+  assert(T && "The target of the cast expression should be a pointer type!");
 
   if (shouldWarn(T, Union))
     diag(Cast->getSubExpr()->getBeginLoc(),
@@ -129,12 +111,8 @@ static bool fieldDerivesFrom(const FieldDecl *Field,
 }
 
 bool UnionPtrCastCheck::shouldWarn(const PointerType *Target, const RecordDecl *Union) const {
-  llvm::errs() << "shouldWarn " << Target << '\n';
-  if (!Target) return false;
-  QualType PointeeQualType = Target->getPointeeType();
-;
   if (const auto *PointeeType =
-          dyn_cast<BuiltinType>(PointeeQualType.getTypePtr())) {
+          dyn_cast<BuiltinType>(Target->getPointeeType().getTypePtr())) {
     if (AlwaysAllowCastToVoidPtr && PointeeType->isVoidType())
       return false;
     if (AlwaysAllowCastToCharPtr && PointeeType->isCharType())
@@ -143,7 +121,7 @@ bool UnionPtrCastCheck::shouldWarn(const PointerType *Target, const RecordDecl *
 
   if (Union->isCompleteDefinition()) {
     for (const FieldDecl *Field : Union->fields()) {
-      if (PointeeQualType == Field->getType())
+      if (Target->getPointeeType() == Field->getType())
         return false;
       if (fieldDerivesFrom(Field, Target->getPointeeCXXRecordDecl()))
         return false;

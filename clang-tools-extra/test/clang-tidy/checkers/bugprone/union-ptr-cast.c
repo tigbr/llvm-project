@@ -2,6 +2,17 @@
 // RUN: -isystem %S/Inputs/union-ptr-cast/system
 
 typedef short *ShortPtrTypedef;
+typedef ShortPtrTypedef ShortPtrTypedefTypedef;
+typedef ShortPtrTypedef *ShortPtrTypedefPtr;
+typedef long *LongPtrTypedef;
+typedef ShortPtrTypedefPtr ShortPtrTypedefPtrTypedef;
+
+
+typedef float *FloatPtrTypedef;
+typedef FloatPtrTypedef *FloatPtrTypedefPtrTypedef;
+
+typedef short Short;
+typedef Short *ShortPtr;
 
 union MyUnion {
   volatile char *F1;
@@ -16,23 +27,36 @@ typedef union MyUnion TypedefMyUnion;
 
 void castToTypeInUnion(union MyUnion *U, TypedefMyUnion *TU) {
   volatile char *V1;
-  const char *V2;
-  const volatile char *V3;
-  short *V4;
-  float *V5;
-  ShortPtrTypedef *V6;
   V1 = U;
-  V2 = U;
-  V3 = U;
-  V4 = U;
-  V5 = U;
-  V6 = U;
   V1 = TU;
+
+  const char *V2;
+  V2 = U;
   V2 = TU;
+
+  const volatile char *V3;
+  V3 = U;
   V3 = TU;
+
+  short *V4;
+  V4 = U;
   V4 = TU;
+
+  float *V5;
+  V5 = U;
   V5 = TU;
+
+  ShortPtrTypedef *V6;
+  V6 = U;
   V6 = TU;
+
+  ShortPtrTypedef V7;
+  V7 = U;
+  V7 = TU;
+
+  ShortPtrTypedefTypedef V8;
+  V8 = U;
+  V8 = TU;
 
   (volatile char**) U;
   (volatile char**) TU;
@@ -46,6 +70,10 @@ void castToTypeInUnion(union MyUnion *U, TypedefMyUnion *TU) {
   (float*) TU;
   (ShortPtrTypedef*) U;
   (ShortPtrTypedef*) TU;
+  (ShortPtrTypedef) U;
+  (ShortPtrTypedef) TU;
+  (ShortPtrTypedefTypedef) U;
+  (ShortPtrTypedefTypedef) TU;
 }
 
 void optionDependentDefaultBehaviors(union MyUnion *U, TypedefMyUnion *TU) {
@@ -75,12 +103,6 @@ void irrelevantCastExpressions(union MyUnion *U, TypedefMyUnion *TU) {
   unsigned long UL = LI;
   (unsigned long) LI;
   (void*) LI;
-
-  // It does not matter that the union has a field with the same type
-  // as the aliased type. Typedefs and usings are not considered "transparent"
-  // in that sense by the check.
-  ShortPtrTypedef V5 = U;
-  (ShortPtrTypedef) U;
 
   union MyUnion *MU = U;
   (union MyUnion*) U;
@@ -155,22 +177,44 @@ void castsWithQualifierMismatches() {
                         U4_V3 = TU4; // CHECK-MESSAGES: :[[@LINE]]:33: warning: the union pointed to by this expression has no field with the type 'const char *'
 }
 
-void castsToTypesWithNoCorresspondingFieldInUnion(union MyUnion *U, TypedefMyUnion *TU) {
-  char  **V1 = U; // CHECK-MESSAGES: :[[@LINE]]:16: warning: the union pointed to by this expression has no field with the type 'char *'
-  int    *V2 = U; // CHECK-MESSAGES: :[[@LINE]]:16: warning: the union pointed to by this expression has no field with the type 'int'
-  long   *V3 = U; // CHECK-MESSAGES: :[[@LINE]]:16: warning: the union pointed to by this expression has no field with the type 'long'
-  double *V4 = U; // CHECK-MESSAGES: :[[@LINE]]:16: warning: the union pointed to by this expression has no field with the type 'double'
-          V1 = TU; // CHECK-MESSAGES: :[[@LINE]]:16: warning: the union pointed to by this expression has no field with the type 'char *'
-          V2 = TU; // CHECK-MESSAGES: :[[@LINE]]:16: warning: the union pointed to by this expression has no field with the type 'int'
-          V3 = TU; // CHECK-MESSAGES: :[[@LINE]]:16: warning: the union pointed to by this expression has no field with the type 'long'
-          V4 = TU; // CHECK-MESSAGES: :[[@LINE]]:16: warning: the union pointed to by this expression has no field with the type 'double'
+void castsToTypeWithNoCorresspondingFieldInUnion(union MyUnion *U, TypedefMyUnion *TU) {
+  char **V1;
+  V1 = U;  // CHECK-MESSAGES: :[[@LINE]]:8: warning: the union pointed to by this expression has no field with the type 'char *'
+  V1 = TU; // CHECK-MESSAGES: :[[@LINE]]:8: warning: the union pointed to by this expression has no field with the type 'char *'
 
+  int *V2;
+  V2 = U;  // CHECK-MESSAGES: :[[@LINE]]:8: warning: the union pointed to by this expression has no field with the type 'int'
+  V2 = TU; // CHECK-MESSAGES: :[[@LINE]]:8: warning: the union pointed to by this expression has no field with the type 'int'
+
+  long *V3;
+  V3 = U;  // CHECK-MESSAGES: :[[@LINE]]:8: warning: the union pointed to by this expression has no field with the type 'long'
+  V3 = TU; // CHECK-MESSAGES: :[[@LINE]]:8: warning: the union pointed to by this expression has no field with the type 'long'
+
+  double *V4;
+  V4 = U;  // CHECK-MESSAGES: :[[@LINE]]:8: warning: the union pointed to by this expression has no field with the type 'double'
+  V4 = TU; // CHECK-MESSAGES: :[[@LINE]]:8: warning: the union pointed to by this expression has no field with the type 'double'
+
+  LongPtrTypedef V5;
+  V5 = U;  // CHECK-MESSAGES: :[[@LINE]]:8: warning: the union pointed to by this expression has no field with the type 'long'
+  V5 = TU; // CHECK-MESSAGES: :[[@LINE]]:8: warning: the union pointed to by this expression has no field with the type 'long'
+ 
+  FloatPtrTypedefPtrTypedef V6;
+  V6 = U;  // CHECK-MESSAGES: :[[@LINE]]:8: warning: the union pointed to by this expression has no field with the type 'FloatPtrTypedef'
+  V6 = TU; // CHECK-MESSAGES: :[[@LINE]]:8: warning: the union pointed to by this expression has no field with the type 'FloatPtrTypedef'
+
+  (char**)  U; // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'char *'
   (int*)    U; // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'int'
   (long*)   U; // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'long'
   (double*) U; // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'double'
+  (LongPtrTypedef) U; // CHECK-MESSAGES: :[[@LINE]]:20: warning: the union pointed to by this expression has no field with the type 'long'
+  (FloatPtrTypedefPtrTypedef) U; // CHECK-MESSAGES: :[[@LINE]]:31: warning: the union pointed to by this expression has no field with the type 'FloatPtrTypedef'
+
+  (char**)  TU; // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'char *'
   (int*)    TU; // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'int'
   (long*)   TU; // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'long'
   (double*) TU; // CHECK-MESSAGES: :[[@LINE]]:13: warning: the union pointed to by this expression has no field with the type 'double'
+  (LongPtrTypedef) TU; // CHECK-MESSAGES: :[[@LINE]]:20: warning: the union pointed to by this expression has no field with the type 'long'
+  (FloatPtrTypedefPtrTypedef) TU; // CHECK-MESSAGES: :[[@LINE]]:31: warning: the union pointed to by this expression has no field with the type 'FloatPtrTypedef'
 }
 
 typedef union Unknown TypedefUnknown;

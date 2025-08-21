@@ -3,7 +3,14 @@
 // RUN: -isystem %S/Inputs/union-ptr-cast/system
 
 typedef short *ShortPtrTypedef;
+typedef ShortPtrTypedef ShortPtrTypedefTypedef;
+typedef ShortPtrTypedef *ShortPtrTypedefPtr;
+typedef long *LongPtrTypedef;
+
 using ShortPtrUsing = short*;
+using ShortPtrUsingUsing = ShortPtrUsing;
+using ShortPtrUsingPtr = ShortPtrUsing*;
+using LongPtrUsing = long*;
 
 class Base { int I; };
 class PublicDerived : public Base { };
@@ -43,12 +50,17 @@ void castToTypeInUnion(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {
   (short*) U;
   (float*) U;
   (ShortPtrTypedef*) U;
+  (ShortPtrTypedefPtr) U;
   (ShortPtrUsing*) U;
   (PublicDerived*) U;
   (ProtectedDerived*) U;
   (PrivateDerived*) U;
   (PublicDerived2*) U;
   (PublicDerived3*) U;
+  (ShortPtrTypedef) U;
+  (ShortPtrTypedefTypedef) U;
+  (ShortPtrUsing) U;
+  (ShortPtrUsingUsing) U;
 
   (volatile char**) TU;
   (const char**) TU;
@@ -56,12 +68,17 @@ void castToTypeInUnion(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {
   (short*) TU;
   (float*) TU;
   (ShortPtrTypedef*) TU;
+  (ShortPtrTypedefPtr) TU;
   (ShortPtrUsing*) TU;
   (PublicDerived*) TU;
   (ProtectedDerived*) TU;
   (PrivateDerived*) TU;
   (PublicDerived2*) TU;
   (PublicDerived3*) TU;
+  (ShortPtrTypedef) TU;
+  (ShortPtrTypedefTypedef) TU;
+  (ShortPtrUsing) TU;
+  (ShortPtrUsingUsing) TU;
 
   (volatile char**) UU;
   (const char**) UU;
@@ -69,12 +86,17 @@ void castToTypeInUnion(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {
   (short*) UU;
   (float*) UU;
   (ShortPtrTypedef*) UU;
+  (ShortPtrTypedefPtr) UU;
   (ShortPtrUsing*) UU;
   (PublicDerived*) UU;
   (ProtectedDerived*) UU;
   (PrivateDerived*) UU;
   (PublicDerived2*) UU;
   (PublicDerived3*) UU;
+  (ShortPtrTypedef) UU;
+  (ShortPtrTypedefTypedef) UU;
+  (ShortPtrUsing) UU;
+  (ShortPtrUsingUsing) UU;
 
   reinterpret_cast<volatile char**>(U);
   reinterpret_cast<const char**>(U);
@@ -82,12 +104,17 @@ void castToTypeInUnion(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {
   reinterpret_cast<short*>(U);
   reinterpret_cast<float*>(U);
   reinterpret_cast<ShortPtrTypedef*>(U);
+  reinterpret_cast<ShortPtrTypedefPtr>(U);
   reinterpret_cast<ShortPtrUsing*>(U);
   reinterpret_cast<PublicDerived*>(U);
   reinterpret_cast<ProtectedDerived*>(U);
   reinterpret_cast<PrivateDerived*>(U);
   reinterpret_cast<PublicDerived2*>(U);
   reinterpret_cast<PublicDerived3*>(U);
+  reinterpret_cast<ShortPtrTypedef>(U);
+  reinterpret_cast<ShortPtrTypedefTypedef>(U);
+  reinterpret_cast<ShortPtrUsing>(U);
+  reinterpret_cast<ShortPtrUsingUsing>(U);
 
   reinterpret_cast<volatile char**>(TU);
   reinterpret_cast<const char**>(TU);
@@ -95,12 +122,17 @@ void castToTypeInUnion(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {
   reinterpret_cast<short*>(TU);
   reinterpret_cast<float*>(TU);
   reinterpret_cast<ShortPtrTypedef*>(TU);
+  reinterpret_cast<ShortPtrTypedefPtr>(TU);
   reinterpret_cast<ShortPtrUsing*>(TU);
   reinterpret_cast<PublicDerived*>(TU);
   reinterpret_cast<ProtectedDerived*>(TU);
   reinterpret_cast<PrivateDerived*>(TU);
   reinterpret_cast<PublicDerived2*>(TU);
   reinterpret_cast<PublicDerived3*>(TU);
+  reinterpret_cast<ShortPtrTypedef>(TU);
+  reinterpret_cast<ShortPtrTypedefTypedef>(TU);
+  reinterpret_cast<ShortPtrUsing>(TU);
+  reinterpret_cast<ShortPtrUsingUsing>(TU);
 
   reinterpret_cast<volatile char**>(UU);
   reinterpret_cast<const char**>(UU);
@@ -108,12 +140,21 @@ void castToTypeInUnion(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {
   reinterpret_cast<short*>(UU);
   reinterpret_cast<float*>(UU);
   reinterpret_cast<ShortPtrTypedef*>(UU);
+  reinterpret_cast<ShortPtrTypedefPtr>(UU);
   reinterpret_cast<ShortPtrUsing*>(UU);
   reinterpret_cast<PublicDerived*>(UU);
   reinterpret_cast<ProtectedDerived*>(UU);
   reinterpret_cast<PrivateDerived*>(UU);
   reinterpret_cast<PublicDerived2*>(UU);
   reinterpret_cast<PublicDerived3*>(UU);
+  reinterpret_cast<ShortPtrTypedef>(UU);
+  reinterpret_cast<ShortPtrTypedefTypedef>(UU);
+  reinterpret_cast<ShortPtrUsing>(UU);
+  reinterpret_cast<ShortPtrUsingUsing>(UU);
+}
+
+void castToTypedefOrUsingPtr() {
+  
 }
 
 void castToBaseClassPointerTest() {
@@ -229,11 +270,6 @@ void irrelevantCastExpressions(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnio
   // It does not matter that the union has a field with the same type
   // as the aliased type. Typedefs and usings are not considered "transparent"
   // in that sense by the check.
-  (ShortPtrTypedef) U;
-  (ShortPtrUsing) U;
-  reinterpret_cast<ShortPtrTypedef>(U);
-  reinterpret_cast<ShortPtrUsing>(U);
-
   (void*) LI;
   reinterpret_cast<void*>(LI);
 
@@ -259,13 +295,30 @@ void irrelevantCastExpressions(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnio
   reinterpret_cast<UsingMyUnion*>(UU);
 }
 
-void castsToTypesWithNoCorresspondingFieldInUnion(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {
+void castsToTypeWithNoCorresspondingFieldInUnion(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {
   (long*) U; // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'long'
   (long*) TU; // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'long'
   (long*) UU; // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'long'
+
+  (LongPtrTypedef) U; // CHECK-MESSAGES: :[[@LINE]]:20: warning: the union pointed to by this expression has no field with the type 'long'
+  (LongPtrTypedef) TU; // CHECK-MESSAGES: :[[@LINE]]:20: warning: the union pointed to by this expression has no field with the type 'long'
+  (LongPtrTypedef) UU; // CHECK-MESSAGES: :[[@LINE]]:20: warning: the union pointed to by this expression has no field with the type 'long'
+
+  (LongPtrUsing) U; // CHECK-MESSAGES: :[[@LINE]]:18: warning: the union pointed to by this expression has no field with the type 'long'
+  (LongPtrUsing) TU; // CHECK-MESSAGES: :[[@LINE]]:18: warning: the union pointed to by this expression has no field with the type 'long'
+  (LongPtrUsing) UU; // CHECK-MESSAGES: :[[@LINE]]:18: warning: the union pointed to by this expression has no field with the type 'long'
+
   reinterpret_cast<long*>(U); // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'long'
   reinterpret_cast<long*>(TU); // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'long'
   reinterpret_cast<long*>(UU); // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'long'
+
+  reinterpret_cast<LongPtrTypedef>(U); // CHECK-MESSAGES: :[[@LINE]]:36: warning: the union pointed to by this expression has no field with the type 'long'
+  reinterpret_cast<LongPtrTypedef>(TU); // CHECK-MESSAGES: :[[@LINE]]:36: warning: the union pointed to by this expression has no field with the type 'long'
+  reinterpret_cast<LongPtrTypedef>(UU); // CHECK-MESSAGES: :[[@LINE]]:36: warning: the union pointed to by this expression has no field with the type 'long'
+
+  reinterpret_cast<LongPtrUsing>(U); // CHECK-MESSAGES: :[[@LINE]]:34: warning: the union pointed to by this expression has no field with the type 'long'
+  reinterpret_cast<LongPtrUsing>(TU); // CHECK-MESSAGES: :[[@LINE]]:34: warning: the union pointed to by this expression has no field with the type 'long'
+  reinterpret_cast<LongPtrUsing>(UU); // CHECK-MESSAGES: :[[@LINE]]:34: warning: the union pointed to by this expression has no field with the type 'long'
 }
 
 void castsWithQualifierMismatches() {
