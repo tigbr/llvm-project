@@ -13,14 +13,11 @@ using namespace clang::ast_matchers;
 
 namespace clang::tidy::bugprone {
 
-static constexpr llvm::StringLiteral AlwaysAllowCastToVoidPtrOptionName =
-    "AlwaysAllowCastToVoidPtr";
-static constexpr llvm::StringLiteral AlwaysAllowCastToCharPtrOptionName =
-    "AlwaysAllowCastToCharPtr";
-static constexpr llvm::StringLiteral IgnoreIfUnionIsFromStdNamespaceOptionName =
-    "IgnoreIfUnionIsFromStdNamespace";
-static constexpr llvm::StringLiteral IgnoreIfUnionIsFromSystemHeaderOptionName =
-    "IgnoreIfUnionIsFromSystemHeader";
+static constexpr llvm::StringLiteral AlwaysAllowCastToVoidPtrOptionName = "AlwaysAllowCastToVoidPtr";
+static constexpr llvm::StringLiteral AlwaysAllowCastToCharPtrOptionName = "AlwaysAllowCastToCharPtr";
+static constexpr llvm::StringLiteral IgnoreIfUnionIsFromStdNamespaceOptionName = "IgnoreIfUnionIsFromStdNamespace";
+static constexpr llvm::StringLiteral IgnoreIfUnionIsFromSystemHeaderOptionName = "IgnoreIfUnionIsFromSystemHeader";
+static constexpr llvm::StringLiteral CompareNormalizedTypesOptionName = "CompareNormalizedTypes";
 static constexpr llvm::StringLiteral UnionBindName = "union";
 static constexpr llvm::StringLiteral CastBindName = "cast";
 
@@ -33,7 +30,8 @@ UnionPtrCastCheck::UnionPtrCastCheck(StringRef Name, ClangTidyContext *Context)
       IgnoreIfUnionIsFromStdNamespace(
           Options.get(IgnoreIfUnionIsFromStdNamespaceOptionName, true)),
       IgnoreIfUnionIsFromSystemHeader(
-          Options.get(IgnoreIfUnionIsFromSystemHeaderOptionName, true)) {}
+          Options.get(IgnoreIfUnionIsFromSystemHeaderOptionName, true)),
+      CompareNormalizedTypes(Options.get(CompareNormalizedTypesOptionName, false)) { }
 
 bool UnionPtrCastCheck::isLanguageVersionSupported(
     const LangOptions &LangOpts) const {
@@ -68,10 +66,44 @@ void UnionPtrCastCheck::registerMatchers(MatchFinder *Finder) {
                      this);
 }
 
+// static RecordDecl* Create(const ASTContext &C, TagKind TK, DeclContext *DC, SourceLocation StartLoc, SourceLocation IdLoc, IdentifierInfo *Id, RecordDecl *PrevDecl=nullptr)
+// DeclContext::addDecl <- is this how FieldDecl can be added?
+
+// This normalization logic is implemented to handle typedef and using
+// statements in two differe ways.
+// Some users might consider a typedef or a using as a hard boundary
+// between types.
+static QualType getNormalizedType(QualType QT, const ASTContext &ASTCTX) {
+  const Type *T = QT.getTypePtr();
+  while (true) {
+    if (auto *E = dyn_cast<ElaboratedType>(T)) {
+      llvm::errs() << "ElaboratedType: " << QT.getAsString() << '\n';
+      QT = E->getNamedType();
+      T = QT.getTypePtr();
+    } else if (auto *E = dyn_cast<PointerType>(T)) {
+      llvm::errs() << "PointerType: " << QT.getAsString() << '\n';
+      return ASTCTX.getPointerType(getNormalizedType(E->getPointeeType(), ASTCTX));
+    } else if (auto *E = dyn_cast<RecordType>(T)) {
+      // RecordDecl::create(ASTCTX, nullptr, )
+      return ASTCTX.getPointerType();
+    } else {
+      llvm::errs() << "Else: " << QT.getAsString() << '\n';
+      QualType Desugared = QT.getSingleStepDesugaredType(ASTCTX);
+      llvm::errs() << "Desugared: " << Desugared.getAsString() << '\n';
+      if (Desugared == QT) {
+        break;
+      }
+      QT = Desugared;
+    }
+  }
+  return QT;
+}
+
 // Peel off typedef or using layers one at a time until a PointerType is found.
 static const PointerType* getCastTargetPointerType(const CastExpr *Cast, const ASTContext &ASTCtx) {
   QualType Prev;
   QualType CastQualType = Cast->getType();
+  llvm::errs() << CastQualType.getAsString() << '\n';
   const PointerType *CastPointerType = nullptr;
   do {
     Prev = CastQualType;
@@ -88,6 +120,8 @@ static const PointerType* getCastTargetPointerType(const CastExpr *Cast, const A
 void UnionPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Union = Result.Nodes.getNodeAs<RecordDecl>(UnionBindName);
   const auto *Cast = Result.Nodes.getNodeAs<CastExpr>(CastBindName);
+  llvm::errs() << getNormalizedType(Cast->getType(), *Result.Context).getAsString() << '\n';
+  return;
   const PointerType *T = getCastTargetPointerType(Cast, *Result.Context);
 
   assert(Union && "Union declaration should be returned in MatchResult!");

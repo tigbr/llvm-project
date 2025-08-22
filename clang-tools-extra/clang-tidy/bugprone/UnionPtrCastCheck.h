@@ -32,6 +32,7 @@ private:
   const bool AlwaysAllowCastToCharPtr;
   const bool IgnoreIfUnionIsFromStdNamespace;
   const bool IgnoreIfUnionIsFromSystemHeader;
+  const bool CompareNormalizedTypes;
 
   bool shouldWarn(const PointerType *CastTargetPointerType, const RecordDecl *Union) const;
 };
