@@ -17,7 +17,7 @@ static constexpr llvm::StringLiteral AlwaysAllowCastToVoidPtrOptionName = "Alway
 static constexpr llvm::StringLiteral AlwaysAllowCastToCharPtrOptionName = "AlwaysAllowCastToCharPtr";
 static constexpr llvm::StringLiteral IgnoreIfUnionIsFromStdNamespaceOptionName = "IgnoreIfUnionIsFromStdNamespace";
 static constexpr llvm::StringLiteral IgnoreIfUnionIsFromSystemHeaderOptionName = "IgnoreIfUnionIsFromSystemHeader";
-static constexpr llvm::StringLiteral CompareNormalizedTypesOptionName = "CompareNormalizedTypes";
+static constexpr llvm::StringLiteral CompareCanonicalTypesOptionName = "CompareCanonicalTypes";
 static constexpr llvm::StringLiteral UnionBindName = "union";
 static constexpr llvm::StringLiteral CastBindName = "cast";
 
@@ -31,7 +31,7 @@ UnionPtrCastCheck::UnionPtrCastCheck(StringRef Name, ClangTidyContext *Context)
           Options.get(IgnoreIfUnionIsFromStdNamespaceOptionName, true)),
       IgnoreIfUnionIsFromSystemHeader(
           Options.get(IgnoreIfUnionIsFromSystemHeaderOptionName, true)),
-      CompareNormalizedTypes(Options.get(CompareNormalizedTypesOptionName, false)) { }
+      CompareCanonicalTypes(Options.get(CompareCanonicalTypesOptionName, false)) { }
 
 bool UnionPtrCastCheck::isLanguageVersionSupported(
     const LangOptions &LangOpts) const {
@@ -73,31 +73,6 @@ void UnionPtrCastCheck::registerMatchers(MatchFinder *Finder) {
 // statements in two differe ways.
 // Some users might consider a typedef or a using as a hard boundary
 // between types.
-static QualType getNormalizedType(QualType QT, const ASTContext &ASTCTX) {
-  const Type *T = QT.getTypePtr();
-  while (true) {
-    if (auto *E = dyn_cast<ElaboratedType>(T)) {
-      llvm::errs() << "ElaboratedType: " << QT.getAsString() << '\n';
-      QT = E->getNamedType();
-      T = QT.getTypePtr();
-    } else if (auto *E = dyn_cast<PointerType>(T)) {
-      llvm::errs() << "PointerType: " << QT.getAsString() << '\n';
-      return ASTCTX.getPointerType(getNormalizedType(E->getPointeeType(), ASTCTX));
-    } else if (auto *E = dyn_cast<RecordType>(T)) {
-      // RecordDecl::create(ASTCTX, nullptr, )
-      return ASTCTX.getPointerType();
-    } else {
-      llvm::errs() << "Else: " << QT.getAsString() << '\n';
-      QualType Desugared = QT.getSingleStepDesugaredType(ASTCTX);
-      llvm::errs() << "Desugared: " << Desugared.getAsString() << '\n';
-      if (Desugared == QT) {
-        break;
-      }
-      QT = Desugared;
-    }
-  }
-  return QT;
-}
 
 // Peel off typedef or using layers one at a time until a PointerType is found.
 static const PointerType* getCastTargetPointerType(const CastExpr *Cast, const ASTContext &ASTCtx) {
@@ -120,7 +95,10 @@ static const PointerType* getCastTargetPointerType(const CastExpr *Cast, const A
 void UnionPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Union = Result.Nodes.getNodeAs<RecordDecl>(UnionBindName);
   const auto *Cast = Result.Nodes.getNodeAs<CastExpr>(CastBindName);
-  llvm::errs() << getNormalizedType(Cast->getType(), *Result.Context).getAsString() << '\n';
+  llvm::errs() << "Original:  " << Cast->getType().getAsString() << '\n';
+  llvm::errs() << "Canonical: " << Cast->getType().getCanonicalType().getAsString() << '\n';
+  llvm::errs() << "Desugared: " << Cast->getType().getDesugaredType(*Result.Context).getAsString() << '\n';
+  llvm::errs() << '\n';
   return;
   const PointerType *T = getCastTargetPointerType(Cast, *Result.Context);
 
