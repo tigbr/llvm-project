@@ -13,25 +13,23 @@ using namespace clang::ast_matchers;
 
 namespace clang::tidy::bugprone {
 
-static constexpr llvm::StringLiteral AlwaysAllowCastToVoidPtrOptionName = "AlwaysAllowCastToVoidPtr";
-static constexpr llvm::StringLiteral AlwaysAllowCastToCharPtrOptionName = "AlwaysAllowCastToCharPtr";
-static constexpr llvm::StringLiteral IgnoreIfUnionIsFromStdNamespaceOptionName = "IgnoreIfUnionIsFromStdNamespace";
-static constexpr llvm::StringLiteral IgnoreIfUnionIsFromSystemHeaderOptionName = "IgnoreIfUnionIsFromSystemHeader";
-static constexpr llvm::StringLiteral CompareCanonicalTypesOptionName = "CompareCanonicalTypes";
 static constexpr llvm::StringLiteral UnionBindName = "union";
 static constexpr llvm::StringLiteral CastBindName = "cast";
 
+// If there is a user specified value for the option, then get that value,
+// otherwise use a default. The # converts its argument to a string literal.
+// So in the configuration the expected name for the option is the same as
+// the name of the corressponding class member.
+#define InitOption(option_name, default_value)\
+option_name(Options.get(#option_name, default_value))
+
 UnionPtrCastCheck::UnionPtrCastCheck(StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      AlwaysAllowCastToVoidPtr(
-          Options.get(AlwaysAllowCastToVoidPtrOptionName, true)),
-      AlwaysAllowCastToCharPtr(
-          Options.get(AlwaysAllowCastToCharPtrOptionName, true)),
-      IgnoreIfUnionIsFromStdNamespace(
-          Options.get(IgnoreIfUnionIsFromStdNamespaceOptionName, true)),
-      IgnoreIfUnionIsFromSystemHeader(
-          Options.get(IgnoreIfUnionIsFromSystemHeaderOptionName, true)),
-      CompareCanonicalTypes(Options.get(CompareCanonicalTypesOptionName, false)) { }
+      InitOption(AlwaysAllowCastToVoidPtr, true),
+      InitOption(AlwaysAllowCastToCharPtr, true),
+      InitOption(IgnoreIfUnionIsFromStdNamespace, true),
+      InitOption(IgnoreIfUnionIsFromSystemHeader, true),
+      InitOption(CompareCanonicalTypes, false) { }
 
 bool UnionPtrCastCheck::isLanguageVersionSupported(
     const LangOptions &LangOpts) const {
@@ -66,46 +64,18 @@ void UnionPtrCastCheck::registerMatchers(MatchFinder *Finder) {
                      this);
 }
 
-// static RecordDecl* Create(const ASTContext &C, TagKind TK, DeclContext *DC, SourceLocation StartLoc, SourceLocation IdLoc, IdentifierInfo *Id, RecordDecl *PrevDecl=nullptr)
-// DeclContext::addDecl <- is this how FieldDecl can be added?
-
-// This normalization logic is implemented to handle typedef and using
-// statements in two differe ways.
-// Some users might consider a typedef or a using as a hard boundary
-// between types.
-
-// Peel off typedef or using layers one at a time until a PointerType is found.
-static const PointerType* getCastTargetPointerType(const CastExpr *Cast, const ASTContext &ASTCtx) {
-  QualType Prev;
-  QualType CastQualType = Cast->getType();
-  llvm::errs() << CastQualType.getAsString() << '\n';
-  const PointerType *CastPointerType = nullptr;
-  do {
-    Prev = CastQualType;
-    CastPointerType = dyn_cast_or_null<PointerType>(CastQualType.getTypePtrOrNull());
-    if (const auto *ET = dyn_cast_or_null<ElaboratedType>(CastQualType.getTypePtrOrNull())) {
-      CastQualType = ET->getNamedType();
-    } else {
-      CastQualType = CastQualType.getSingleStepDesugaredType(ASTCtx);
-    }
-  } while ((Prev != CastQualType) && !CastPointerType);
-  return CastPointerType;
-}
-
 void UnionPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Union = Result.Nodes.getNodeAs<RecordDecl>(UnionBindName);
   const auto *Cast = Result.Nodes.getNodeAs<CastExpr>(CastBindName);
-  llvm::errs() << "Original:  " << Cast->getType().getAsString() << '\n';
-  llvm::errs() << "Canonical: " << Cast->getType().getCanonicalType().getAsString() << '\n';
-  llvm::errs() << "Desugared: " << Cast->getType().getDesugaredType(*Result.Context).getAsString() << '\n';
-  llvm::errs() << '\n';
-  return;
-  const PointerType *T = getCastTargetPointerType(Cast, *Result.Context);
 
   assert(Union && "Union declaration should be returned in MatchResult!");
   assert(Cast && "Cast expression should be returned in MatchResult!");
-  assert(T && "The target of the cast expression should be a pointer type!");
 
+  QualType CastQT = CompareCanonicalTypes
+                      ? Cast->getType().getDesugaredType(*Result.Context)
+                      : CastQT.getCanonicalType();
+
+  const auto *T = dyn_cast<PointerType>(CastQT.getTypePtr());
   if (shouldWarn(T, Union))
     diag(Cast->getSubExpr()->getBeginLoc(),
          "the union pointed to by this expression has no field with the type "
@@ -123,6 +93,8 @@ static bool fieldDerivesFrom(const FieldDecl *Field,
 }
 
 bool UnionPtrCastCheck::shouldWarn(const PointerType *Target, const RecordDecl *Union) const {
+  if (!Target) return false;
+
   if (const auto *PointeeType =
           dyn_cast<BuiltinType>(Target->getPointeeType().getTypePtr())) {
     if (AlwaysAllowCastToVoidPtr && PointeeType->isVoidType())

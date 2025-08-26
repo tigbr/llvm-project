@@ -33,7 +33,23 @@ target's pointee type.
     reinterpret_cast<double*>(U); // warning: the union pointed to by this expression has no field with the type 'double'
   }
 
-The check is aware of C++ inheritance. A cast is also accepted if the ``union`` has a field whose type is only a subtype of the cast target's pointee type.
+The check can retrieve the pointee target type through type aliases. In case the target pointer type of the cast is behind a type alias, then the check retrieves the pointer type itself from behind the alias.
+In the example below, the check retrieves the type behind ``(ShortPtr)``, namely, ``short *``.
+
+.. code-block:: c++
+
+  typedef short *ShortPtr;
+
+  union MyUnion {
+    short S;
+  };
+
+  void example(union MyUnion *U) {
+    (ShortPtr) U;
+  }
+
+The check is aware of C++ inheritance. A cast is also accepted if the ``union``
+has a field whose type is only a subtype of the cast target's pointee type.
 
 .. code-block:: c++
 
@@ -86,3 +102,22 @@ a system header file.
 
 Both are enabled by default.
 
+.. option :: CompareCanonicalTypes
+
+When this option is enabled, then the canonical versions of the pointer pointee and the union field types get compared. The following example shows the "original" and canonical version of a few different types.
+
+.. code-block:: c++
+
+  typedef short *ShortPtr;
+  typedef ShortPtr *ShortPtrPtr;
+  typedef void (voidFunctionPtr)(ShortPtr, ShortPtr2);
+
+  // CompareCanonicalTypes: false
+  // (ShortPtr)         -> (short*)
+  // (ShortPtrPtr)      -> (ShortPtr*)
+  // (voidFunctionPtr*) -> (voidFunctionPtr*)
+
+  // CompareCanonicalTypes: true
+  (ShortPtr*) U; // Analyzed as short*
+
+This option is disabled by default.
