@@ -14,6 +14,20 @@ typedef FloatPtrTypedef *FloatPtrTypedefPtrTypedef;
 typedef short Short;
 typedef Short *ShortPtr;
 
+struct Bar {
+  void *F1;
+};
+
+struct Foo {
+  struct Bar F1;
+  void **F2;
+};
+
+union FooBar {
+  struct Foo F1;
+  double **F2;
+};
+
 union MyUnion {
   volatile char *F1;
   const char *F2;
@@ -21,6 +35,7 @@ union MyUnion {
   short F4;
   float F5;
   ShortPtrTypedef F6;
+  union FooBar F7;
 };
 
 typedef union MyUnion TypedefMyUnion;
@@ -58,6 +73,10 @@ void castToTypeInUnion(union MyUnion *U, TypedefMyUnion *TU) {
   V8 = U;
   V8 = TU;
 
+  union FooBar *V9;
+  V9 = U;
+  V9 = TU;
+
   (volatile char**) U;
   (volatile char**) TU;
   (const char**) U;
@@ -74,26 +93,62 @@ void castToTypeInUnion(union MyUnion *U, TypedefMyUnion *TU) {
   (ShortPtrTypedef) TU;
   (ShortPtrTypedefTypedef) U;
   (ShortPtrTypedefTypedef) TU;
+  (union FooBar*) U;
+  (union FooBar*) TU;
 }
-
-void optionDependentDefaultBehaviors(union MyUnion *U, TypedefMyUnion *TU) {
-  char *C = U;
-  C = TU;
-  void *V = U;
-  V = TU;
-  (char*) U;
-  (void*) U;
-  (char*) TU;
-  (void*) TU;
-}
-
-// By default, do not analyze cast expressions where the pointee union
-// comes from from a system header file. C has no namespaces, so that
-// is omitted from this file.
 
 #include <pthread.h>
 
-void fromSystemHeaderFile(pthread_mutex_t *T) {
+void optionDependentDefaultBehaviors(union MyUnion *U, TypedefMyUnion *TU) {
+  /* AllowCastToCharPtr */
+  char *C;
+  C = U;
+  C = TU;
+  (char*) U;
+  (char*) TU;
+
+  /* AllowCastToCharPtr */
+  void *V = U;
+  V = TU;
+  (void*) U;
+  (void*) TU;
+
+  /* AllowCastToSubFields */
+  struct Foo *SubFieldPtr1;
+  SubFieldPtr1 = U;
+  SubFieldPtr1 = TU;
+  (struct Foo*) U;
+  (struct Foo*) TU;
+
+  double ***SubFieldPtr2;
+  SubFieldPtr2 = U;
+  SubFieldPtr2 = TU;
+  (double***) U;
+  (double***) TU;
+
+  struct Bar *SubFieldPtr3;
+  SubFieldPtr3 = U;
+  SubFieldPtr3 = TU;
+  (struct Bar*) U;
+  (struct Bar*) TU;
+
+  void ***SubFieldPtr4;
+  SubFieldPtr4 = U;  // CHECK-MESSAGES: :[[@LINE]]:18: warning: the union pointed to by this expression has no field with the type 'void **'
+  SubFieldPtr4 = TU; // CHECK-MESSAGES: :[[@LINE]]:18: warning: the union pointed to by this expression has no field with the type 'void **'
+  (void ***) U;      // CHECK-MESSAGES: :[[@LINE]]:14: warning: the union pointed to by this expression has no field with the type 'void **'
+  (void ***) TU;     // CHECK-MESSAGES: :[[@LINE]]:14: warning: the union pointed to by this expression has no field with the type 'void **'
+
+  void **SubFieldPtr5;
+  SubFieldPtr5 = U;
+  SubFieldPtr5 = TU;
+  (void **) U;
+  (void **) TU;
+
+  /* IgnoreIfUnionIsFromSystemHeader */
+  // By default, do not analyze cast expressions where the pointee union
+  // comes from from a system header file. C has no namespaces, so that
+  // is omitted from this file.
+  pthread_mutex_t *T;
   void *P = T;
   (void*) T;
 }

@@ -33,12 +33,16 @@ target's pointee type.
     reinterpret_cast<double*>(U); // warning: the union pointed to by this expression has no field with the type 'double'
   }
 
-The check can retrieve the pointee target type through type aliases. In case the target pointer type of the cast is behind a type alias, then the check retrieves the pointer type itself from behind the alias.
-In the example below, the check retrieves the type behind ``(ShortPtr)``, namely, ``short *``.
+The check can retrieve the pointee target type through type aliases.
+In case the target pointer type of the cast is behind a type alias,
+then the check retrieves the pointer type itself from behind the alias.
+In the example below, the check retrieves the type behind ``(ShortPtr)``,
+namely, ``short *``.
 
 .. code-block:: c++
 
   typedef short *ShortPtr;
+  typedef int *IntPtr;
 
   union MyUnion {
     short S;
@@ -46,10 +50,11 @@ In the example below, the check retrieves the type behind ``(ShortPtr)``, namely
 
   void example(union MyUnion *U) {
     (ShortPtr) U;
+    (IntPtr) U; // warning: the union pointed to by this expression has no field with the type 'int'
   }
 
 The check is aware of C++ inheritance. A cast is also accepted if the ``union``
-has a field whose type is only a subtype of the cast target's pointee type.
+has a field whose type is a subtype of the cast target's pointee type.
 
 .. code-block:: c++
 
@@ -68,56 +73,62 @@ has a field whose type is only a subtype of the cast target's pointee type.
     B = reinterpret_cast<Base*>(U);
   }
 
-The pointer may be hidden behind (potentially multiple) ``typedef`` or a ``using`` statements.
-
-.. code-block:: c++
-
-  typedef short *ShortPtr;
-
-  union MyUnion {
-    void *P;
-    float F;
-  };
-
-  void example(union MyUnion *U) {
-    ShortPtr S = (ShortPtr) U; // warning: the union pointed to by this expression has no field with the type 'short'
-  }
-
 Options
 -------
 
 .. option:: AlwaysAllowCastToCharPtr, AlwaysAllowCastToVoidPtr
 
-These options toggle whether casts to ``char*`` or ``void*`` should be allowed,
-even when the ``union`` pointed by the source expression does not contain a field with
-one of those types.
-
 Both are enabled by default.
 
+These options toggle whether casts to ``char*`` or ``void*`` should be allowed
+even when the ``union`` pointed by the source expression does not contain a
+field with one of those types.
+
 .. option:: IgnoreIfUnionIsFromStdNamespace, IgnoreIfUnionIsFromSystemHeader
+
+Both are enabled by default.
 
 These options toggle whether a cast should be ignored when the ``union``
 pointed by the source expression is declared in the ``std::`` namespace or in
 a system header file.
 
-Both are enabled by default.
-
 .. option :: CompareCanonicalTypes
 
-When this option is enabled, then the canonical versions of the pointer pointee and the union field types get compared. The following example shows the "original" and canonical version of a few different types.
+This option is disabled by default.
+
+When enabled, the check compares the canonical versions of the pointer pointee
+and the ``union`` field types. This means that the types are converted to their
+most fundamental form by removing all sugar, ``typedef``, ``using`` etc. layers.
+This operation preserves the levels of indirection and the qualifiers introduced
+by the type aliases.
+
+The following example shows a few different examples for how this option affects
+the interpretation of types.
 
 .. code-block:: c++
 
   typedef short *ShortPtr;
   typedef ShortPtr *ShortPtrPtr;
-  typedef void (voidFunctionPtr)(ShortPtr, ShortPtr2);
+  typedef const ShortPtr *ShortPtrConstPtr;
 
-  // CompareCanonicalTypes: false
-  // (ShortPtr)         -> (short*)
-  // (ShortPtrPtr)      -> (ShortPtr*)
-  // (voidFunctionPtr*) -> (voidFunctionPtr*)
+  struct Foo { int a; };
+  typedef struct foo FooStruct;
+  typedef FooStruct* FooStructPtr;
 
-  // CompareCanonicalTypes: true
-  (ShortPtr*) U; // Analyzed as short*
+  typedef void (voidFunction)(ShortPtr, ShortPtrPtr);
 
-This option is disabled by default.
++-----------------------+----------------------+-------------------------------+
+| CompareCanonicalTypes | false (only desugar) |             true              |
++=======================+======================+===============================+
+| `ShortPtr`            | `short *`            | `short *`                     |
++-----------------------+----------------------+-------------------------------+
+| `ShortPtrConstPtr`    | `const ShortPtr *`   | `short *const *`              |
++-----------------------+----------------------+-------------------------------+
+| `ShortPtrPtr`         | `ShortPtr *`         | `short **`                    |
++-----------------------+----------------------+-------------------------------+
+| `voidFunction *`      | `voidFunction *`     | `void (*)(short *, short **)` |
++-----------------------+----------------------+-------------------------------+
+| `FooStruct *`         | `FooStruct *`        | `struct foo *`                |
++-----------------------+----------------------+-------------------------------+
+| `FooStructPtr`        | `FooStruct *`        | `struct foo *`                |
++-----------------------+----------------------+-------------------------------+

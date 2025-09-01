@@ -18,18 +18,19 @@ static constexpr llvm::StringLiteral CastBindName = "cast";
 
 // If there is a user specified value for the option, then get that value,
 // otherwise use a default. The # converts its argument to a string literal.
-// So in the configuration the expected name for the option is the same as
-// the name of the corressponding class member.
-#define InitOption(option_name, default_value)\
-option_name(Options.get(#option_name, default_value))
+// So the option's expected name in the configuration is the same as the name
+// of the corressponding class member holding the option's value.
+#define InitOption(option_name, default_value)                                 \
+  option_name(Options.get(#option_name, default_value))
 
 UnionPtrCastCheck::UnionPtrCastCheck(StringRef Name, ClangTidyContext *Context)
-    : ClangTidyCheck(Name, Context),
-      InitOption(AlwaysAllowCastToVoidPtr, true),
+    : ClangTidyCheck(Name, Context), InitOption(AlwaysAllowCastToVoidPtr, true),
       InitOption(AlwaysAllowCastToCharPtr, true),
+      InitOption(AllowCastToSubFields, true),
+      InitOption(AllowCastToBaseClass, true),
       InitOption(IgnoreIfUnionIsFromStdNamespace, true),
       InitOption(IgnoreIfUnionIsFromSystemHeader, true),
-      InitOption(CompareCanonicalTypes, false) { }
+      InitOption(CompareCanonicalTypes, false) {}
 
 bool UnionPtrCastCheck::isLanguageVersionSupported(
     const LangOptions &LangOpts) const {
@@ -72,14 +73,15 @@ void UnionPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
   assert(Cast && "Cast expression should be returned in MatchResult!");
 
   QualType CastQT = CompareCanonicalTypes
-                      ? Cast->getType().getDesugaredType(*Result.Context)
-                      : CastQT.getCanonicalType();
+                        ? Cast->getType().getCanonicalType()
+                        : Cast->getType().getDesugaredType(*Result.Context);
 
   const auto *T = dyn_cast<PointerType>(CastQT.getTypePtr());
   if (shouldWarn(T, Union))
     diag(Cast->getSubExpr()->getBeginLoc(),
          "the union pointed to by this expression has no field with the type "
-         "'%0'") << T->getPointeeType().getAsString();
+         "'%0'")
+        << T->getPointeeType().getAsString();
 }
 
 static bool fieldDerivesFrom(const FieldDecl *Field,
@@ -92,8 +94,28 @@ static bool fieldDerivesFrom(const FieldDecl *Field,
   return false;
 }
 
+bool UnionPtrCastCheck::hasFieldOfType(const PointerType *Target, const RecordDecl *Record) const {
+  if (!Record)
+    return false;
+  for (const FieldDecl *Field : Record->fields()) {
+    QualType FieldType = CompareCanonicalTypes
+                             ? Field->getType().getCanonicalType()
+                             : Field->getType();
+    if (FieldType == Target->getPointeeType())
+      return true;
+    if (AllowCastToBaseClass && fieldDerivesFrom(Field, Target->getPointeeCXXRecordDecl()))
+      return true;
+    if (AllowCastToSubFields && hasFieldOfType(Target, FieldType.getTypePtr()->getAsRecordDecl()))
+      return true;
+    if (!Record->isUnion())
+      break;
+  }
+  return false;
+}
+
 bool UnionPtrCastCheck::shouldWarn(const PointerType *Target, const RecordDecl *Union) const {
-  if (!Target) return false;
+  if (!Target)
+    return false;
 
   if (const auto *PointeeType =
           dyn_cast<BuiltinType>(Target->getPointeeType().getTypePtr())) {
@@ -103,14 +125,8 @@ bool UnionPtrCastCheck::shouldWarn(const PointerType *Target, const RecordDecl *
       return false;
   }
 
-  if (Union->isCompleteDefinition()) {
-    for (const FieldDecl *Field : Union->fields()) {
-      if (Target->getPointeeType() == Field->getType())
-        return false;
-      if (fieldDerivesFrom(Field, Target->getPointeeCXXRecordDecl()))
-        return false;
-    }
-  }
+  if (hasFieldOfType(Target, Union))
+    return false;
 
   return true;
 }

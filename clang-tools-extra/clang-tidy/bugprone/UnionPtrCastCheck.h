@@ -30,10 +30,13 @@ public:
 private:
   const bool AlwaysAllowCastToVoidPtr;
   const bool AlwaysAllowCastToCharPtr;
+  const bool AllowCastToSubFields;
+  const bool AllowCastToBaseClass;
   const bool IgnoreIfUnionIsFromStdNamespace;
   const bool IgnoreIfUnionIsFromSystemHeader;
   const bool CompareCanonicalTypes;
 
+  bool hasFieldOfType(const PointerType *Target, const RecordDecl *Record) const;
   bool shouldWarn(const PointerType *CastTargetPointerType, const RecordDecl *Union) const;
 };
 
