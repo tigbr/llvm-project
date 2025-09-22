@@ -461,8 +461,58 @@ void TaggedUnionChecker::checkLocation2(SVal Loc, bool IsLoad, const Stmt *State
     }
 }
 
+#define KindCase(kind_name) case kind_name: msg = #kind_name; break;
+
+const Stmt* CFGElementToStmt(CFGElement element) {
+	if (element.getKind() == clang::CFGElement::Kind::Statement)
+		if (auto cfgstmt = element.getAs<CFGStmt>())
+			return cfgstmt->getStmt();
+	return nullptr;
+}
+
+static void asdf(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) {
+	const LocationContext *Location = C.getLocationContext();
+	if (!Location) return;
+    llvm::errs() << "Got LocationContext!\n";
+
+	CFG *cfg = Location->getCFG();
+	if (!cfg) return;
+    llvm::errs() << "Got CFG!\n";
+	llvm::errs() << "CFG size: " << cfg->size() << '\n';
+    cfg->dump(C.getLangOpts(), true);
+	return;
+
+	for (CFGBlock *block : cfg->nodes()) {
+		for (unsigned i = 0; i < block->size(); i += 1) {
+			CFGElement element = (*block)[i];
+			if (const Stmt *stmt = CFGElementToStmt(element)) {
+				if (stmt == Statement) {
+					if (i != (~(unsigned)0) && i + 1 < block->size()) {
+						if (const Stmt *stmt2 = CFGElementToStmt((*block)[i+1])) {
+							if (dyn_cast<CStyleCastExpr>(stmt2)) { 
+								Statement->dump();
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+static void asdf2(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) {
+	auto cfgelement = C.getCFGElementRef();
+	if (auto cfgstmt = cfgelement->getAs<clang::CFGStmt>()) {
+		cfgstmt->getStmt()->dump();
+		// Loc.dump();
+		// llvm::errs() << '\n';
+		Statement->dump();
+	}
+}
+
 void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) const {
 	using namespace clang::ast_matchers;
+	asdf(Loc, IsLoad, Statement, C);
 
 	// Statement->dump();
 
@@ -616,12 +666,47 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 	}
 }
 
+void TaggedUnionChecker::checkASTCodeBody(const Decl *D, AnalysisManager &Mgr, BugReporter &B) const {
+    return;
+	if (!D) return;
+    llvm::errs() << "got TranslationUnitDecl!\n";
+	CFG *cfg = Mgr.getCFG(D);
+    if (!cfg) return; 
+    llvm::errs() << "got CFG!\n";
+    for (CFGBlock *block : cfg->nodes()) {
+		for (unsigned i = 0; i < block->size(); i += 1) {
+			CFGElement element = (*block)[i];
+			const char *msg = nullptr;
+            switch (element.getKind()) {
+                default: msg = ""; break;
+				KindCase(clang::CFGElement::Kind::Initializer)
+				KindCase(clang::CFGElement::Kind::ScopeBegin)
+				KindCase(clang::CFGElement::Kind::ScopeEnd)
+				KindCase(clang::CFGElement::Kind::NewAllocator)
+				KindCase(clang::CFGElement::Kind::LifetimeEnds)
+				KindCase(clang::CFGElement::Kind::LoopExit)
+				KindCase(clang::CFGElement::Kind::Statement)
+				KindCase(clang::CFGElement::Kind::Constructor)
+				KindCase(clang::CFGElement::Kind::CXXRecordTypedCall)
+				KindCase(clang::CFGElement::Kind::AutomaticObjectDtor)
+				KindCase(clang::CFGElement::Kind::DeleteDtor)
+				KindCase(clang::CFGElement::Kind::BaseDtor)
+				KindCase(clang::CFGElement::Kind::MemberDtor)
+				KindCase(clang::CFGElement::Kind::TemporaryDtor)
+				KindCase(clang::CFGElement::Kind::CleanupFunction)
+			}
+			llvm::errs() << msg << '\n';
+		}
+    }
+}
+
 void TaggedUnionChecker::checkASTDecl(const TranslationUnitDecl *D, AnalysisManager &Mgr, BugReporter &BR) const {
     MatchCallback.initialize(&BR, Mgr.getAnalysisDeclContext(D));
 	Finder.matchAST(Mgr.getASTContext());
 }
 
 void TaggedUnionChecker::checkEndAnalysis(ExplodedGraph &G, BugReporter &BR, ExprEngine &Eng) const {
+
 	return;
 	for (int i = 0; i < contexts.size(); i += 1) {
 		if (const ExplodedNode *exploded_node = contexts[i].exploded_node) 
