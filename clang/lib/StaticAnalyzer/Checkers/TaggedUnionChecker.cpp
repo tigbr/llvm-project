@@ -79,6 +79,8 @@ public:
 struct PendingTaggedUnionAccess {
 	ExplodedNode *exploded_node;
 	CheckerContext checker_context;
+	// ConstCFGElementRef access_stmt;
+	const RecordDecl *tagged_union_decl;
 	const FieldDecl *accessed_union_field;
 	SVal tag_sval;
 };
@@ -350,6 +352,7 @@ static void ancestorsValami(const Stmt *S, CheckerContext &C) {
 // }
 
 void TaggedUnionChecker::checkEnumTagAccess(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) const {
+	bool IsStore = !IsLoad;
 	using namespace clang::ast_matchers;
 
 	// llvm::errs() << '\n';
@@ -397,12 +400,23 @@ void TaggedUnionChecker::checkEnumTagAccess(SVal Loc, bool IsLoad, const Stmt *S
   }
 #endif
 
-	if (region->isSubRegionOf(enum_field_region) && !IsLoad) {
+	if (region->isSubRegionOf(enum_field_region) && IsStore) {
 		SymbolRef s = nullptr;
 		const NoteTag *first_access_of_field = C.getNoteTag([enum_field_region](PathSensitiveBugReport &BR) {
 			return "The tag field of this tagged union is changed here";
 		});
-		C.addTransition(C.getState(), first_access_of_field);
+		ExplodedNode *en_tag = C.addTransition(C.getState(), first_access_of_field);
+		for (int i = 0; i < contexts.size(); i += 1) {
+			if (contexts[i].tagged_union_decl == root) {
+			// if (contexts[i].) {
+
+			// }
+			}
+			// ExplodedNode *en_union = contexts[i].exploded_node;
+			// if (en_union->) {
+			// 	
+			// }
+		}
 	}
 }
 
@@ -500,19 +514,57 @@ static void asdf(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C
 	}
 }
 
+#if 0
+------------ Source ------------
+T.field_A = 5;
+T.tag = tag_A;
+
+------------ CFG ------------
+T
+T.field_A
+5
+T.field_A = 5; <--- CheckLocation: SVal Loc: &T.field_A. Statement: .field_A gyökérkifejezése (MemberExpr)
+T
+T.tag
+tag_A
+T.tag = tag_A;
+
+ExplodedNode X: union field A assigned in tagged union object T1 of type TU1
+ExplodedNode Y: enum field B assigned in tagged union object T2 of type TU2
+
+I.   Is T1 the same object as T2?
+II.  Is TU1 the same type as TU2?
+III. Is X and Y on the same path of execution?
+IV.  Is Y "essentially right after" X?
+
+Possible solution for IV:
+
+* The two assignment operations should be right after each other in the AST
+* ASTContext: getParents method -> finding common parent compoundStmt
+* Iterating compoundStmt to see if they are after each other
+
+On union access save:
+* result of getCFGElementRef()
+* const RecordDecl * of the accessed tagged union
+* 
+#endif
+
 static void asdf2(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) {
 	auto cfgelement = C.getCFGElementRef();
 	if (auto cfgstmt = cfgelement->getAs<clang::CFGStmt>()) {
 		cfgstmt->getStmt()->dump();
 		// Loc.dump();
 		// llvm::errs() << '\n';
-		Statement->dump();
+		// Statement->dump();
 	}
+}
+
+static void asdf3(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) {
 }
 
 void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) const {
 	using namespace clang::ast_matchers;
-	asdf(Loc, IsLoad, Statement, C);
+	asdf2(Loc, IsLoad, Statement, C);
 
 	// Statement->dump();
 
@@ -593,7 +645,7 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 	}
 
 	if (accessed_union_field) {
-		contexts.emplace_back(PendingTaggedUnionAccess{C.addTransition(), C, accessed_union_field, enum_value_sval});
+		contexts.emplace_back(PendingTaggedUnionAccess{C.addTransition(), C, root, accessed_union_field, enum_value_sval});
 	}
 
 	return;
@@ -603,7 +655,7 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 			auto &map_for_current = tagged_union_invariants[root];
 			auto expected_field = map_for_current.find(*tag_value_apsint);
 			if (contexts.size() < 5) {
-				contexts.emplace_back(PendingTaggedUnionAccess{C.addTransition(), C, accessed_union_field, enum_value_sval});
+				contexts.emplace_back(PendingTaggedUnionAccess{C.addTransition(), C, root, accessed_union_field, enum_value_sval});
 			}
 			if (expected_field != map_for_current.end()) {
 				if (accessed_union_field != expected_field->second) {
@@ -656,11 +708,11 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 				Report->markInteresting(union_field_region);
 				Report->markInteresting(enum_field_region);
 				bugreporter::trackStoredValue(Loc, accessed_union_field_region, *Report);
-				C.emitReport(std::move(Report));
 				const NoteTag *first_access_of_field = C.getNoteTag([enum_field_region](PathSensitiveBugReport &BR) {
 					return "First access of field!";
 				});
 				C.addTransition(C.getState(), first_access_of_field);
+				C.emitReport(std::move(Report));
 			}
 		}
 	}
@@ -706,7 +758,31 @@ void TaggedUnionChecker::checkASTDecl(const TranslationUnitDecl *D, AnalysisMana
 }
 
 void TaggedUnionChecker::checkEndAnalysis(ExplodedGraph &G, BugReporter &BR, ExprEngine &Eng) const {
-
+	return;
+	for (int i = 0; i < contexts.size(); i += 1) {
+		llvm::errs() << "CFG -> CFGBlocks -> CFGElements\n";
+		CFG &cfg = contexts[i].exploded_node->getCFG();
+		size_t idx = 0;
+		for (CFGBlock *block : cfg) {
+			if (idx == 1) {
+				llvm::errs() << "getCFGBlock() is the same as second CFGBlock: " << (block == contexts[i].exploded_node->getCFGBlock()) << "\n";
+			}
+			llvm::errs() << "CFGBlock: " << idx << "\n";
+			for (size_t j = 0; j < block->size(); j += 1) {
+				CFGElement e = (*block)[j];
+				if (e.getAs<CFGStmt>()) e.dump();
+			}
+			idx += 1;
+		}
+		llvm::errs() << "\n";
+		llvm::errs() << "getCFGBlock() -> CFGElements\n";
+		const CFGBlock *block = contexts[i].exploded_node->getCFGBlock();
+		for (size_t j = 0; j < block->size(); j += 1) {
+			CFGElement e = (*block)[j];
+			if (e.getAs<CFGStmt>()) e.dump();
+		}
+		llvm::errs() << "\n\n";
+	}
 	return;
 	for (int i = 0; i < contexts.size(); i += 1) {
 		if (const ExplodedNode *exploded_node = contexts[i].exploded_node) 
