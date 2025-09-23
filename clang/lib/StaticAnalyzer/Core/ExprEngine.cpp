@@ -219,6 +219,8 @@ REGISTER_TRAIT_WITH_PROGRAMSTATE(PendingArrayDestruction,
 
 static const char* TagProviderName = "ExprEngine";
 
+ExplodedGraph *exploded_graph;
+
 ExprEngine::ExprEngine(cross_tu::CrossTranslationUnitContext &CTU,
                        AnalysisManager &mgr, SetOfConstDecls *VisitedCalleesIn,
                        FunctionSummariesTy *FS, InliningModes HowToInlineIn)
@@ -236,6 +238,7 @@ ExprEngine::ExprEngine(cross_tu::CrossTranslationUnitContext &CTU,
     // Enable eager node reclamation when constructing the ExplodedGraph.
     G.enableNodeReclamation(TrimInterval);
   }
+  exploded_graph = &G;
 }
 
 //===----------------------------------------------------------------------===//
@@ -958,10 +961,51 @@ void ExprEngine::printJson(raw_ostream &Out, ProgramStateRef State,
                                                    IsDot);
 }
 
+struct EnvironmentAppearances {
+	Environment *env;
+	std::vector<ExplodedNode *> sources;
+};
+
+enum NodeRelation {
+	nr_first,
+	nr_parent_child,
+	nr_other,
+	nr_count
+};
+
+std::vector<EnvironmentAppearances> appearances;
+
+static bool is_pred_succ_relationship(ExplodedNode *a, ExplodedNode *b) {
+    if (a == b) return false;
+	for (ExplodedNode *pred_a : a->preds()) {
+		if (pred_a == b) return true;
+	}
+	for (ExplodedNode *pred_b : b->preds()) {
+		if (pred_b == a) return true;
+	}
+	return true;
+}
+
 void ExprEngine::processEndWorklist() {
   // This prints the name of the top-level function if we crash.
   PrettyStackTraceLocationContext CrashInfo(getRootLocationContext());
   getCheckerManager().runCheckersForEndAnalysis(G, BR, *this);
+
+  unsigned max_appearance_count = 0;
+  double average_appearance = 0;
+  unsigned parent_child_redundancy_count = 0;
+  for (EnvironmentAppearances &ea : appearances) {
+	if (ea.sources.size() > max_appearance_count) {
+		max_appearance_count = ea.sources.size();
+	}
+	 for (int i = 0; i < ea.sources.size(); i += 1) {
+		for (int j = 0; j < i; j += 1) {
+			if (is_pred_succ_relationship(ea.sources[j], ea.sources[i])) {
+				
+			}
+		}
+    }
+  }
 }
 
 void ExprEngine::processCFGElement(const CFGElement E, ExplodedNode *Pred,

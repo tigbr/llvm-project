@@ -298,12 +298,38 @@ SVal ProgramState::getSVal(Loc location, QualType T) const {
   return V;
 }
 
+struct Duplicate {
+	Environment *env;
+	std::vector<ExplodedNode *> sources;
+};
+
+extern ExplodedGraph *exploded_graph;
+extern std::vector<Duplicate> dups;
+
 ProgramStateRef ProgramState::BindExpr(const Stmt *S,
                                            const LocationContext *LCtx,
                                            SVal V, bool Invalidate) const{
   Environment NewEnv =
     getStateManager().EnvMgr.bindExpr(Env, EnvironmentEntry(S, LCtx), V,
                                       Invalidate);
+
+  Duplicate *d = nullptr;
+  for (int i = 0; i < dups.size(); i += 1) {
+    if (*dups[i].env == NewEnv) {
+      d = &dups[i];
+    }
+  }
+  if (!d) {
+    dups.push_back({});
+  } 
+
+  for (ExplodedNode &node : exploded_graph->nodes()) {
+     const Environment &env = node.getState()->getEnvironment();
+     if (V == env.lookupExpr(EnvironmentEntry(S, LCtx))) {
+       d->sources.push_back(&node);
+     }
+  }
+
   if (NewEnv == Env)
     return this;
 

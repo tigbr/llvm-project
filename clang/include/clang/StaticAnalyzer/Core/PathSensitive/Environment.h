@@ -63,9 +63,9 @@ private:
 
   Environment(BindingsTy eb) : ExprBindings(eb) {}
 
+public:
   SVal lookupExpr(const EnvironmentEntry &E) const;
 
-public:
   using iterator = BindingsTy::iterator;
 
   iterator begin() const { return ExprBindings.begin(); }
