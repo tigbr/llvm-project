@@ -220,6 +220,7 @@ REGISTER_TRAIT_WITH_PROGRAMSTATE(PendingArrayDestruction,
 static const char* TagProviderName = "ExprEngine";
 
 ExplodedGraph *exploded_graph;
+ExplodedNode *pred_exploded_node;
 
 ExprEngine::ExprEngine(cross_tu::CrossTranslationUnitContext &CTU,
                        AnalysisManager &mgr, SetOfConstDecls *VisitedCalleesIn,
@@ -961,8 +962,8 @@ void ExprEngine::printJson(raw_ostream &Out, ProgramStateRef State,
                                                    IsDot);
 }
 
-struct EnvironmentAppearances {
-	Environment *env;
+struct EnvironmentOrigins {
+	Environment env;
 	std::vector<ExplodedNode *> sources;
 };
 
@@ -973,7 +974,7 @@ enum NodeRelation {
 	nr_count
 };
 
-std::vector<EnvironmentAppearances> appearances;
+std::vector<EnvironmentOrigins> envs;
 
 static bool is_pred_succ_relationship(ExplodedNode *a, ExplodedNode *b) {
     if (a == b) return false;
@@ -994,7 +995,7 @@ void ExprEngine::processEndWorklist() {
   unsigned max_appearance_count = 0;
   double average_appearance = 0;
   unsigned parent_child_redundancy_count = 0;
-  for (EnvironmentAppearances &ea : appearances) {
+  for (EnvironmentOrigins &ea : envs) {
 	if (ea.sources.size() > max_appearance_count) {
 		max_appearance_count = ea.sources.size();
 	}
@@ -1754,6 +1755,7 @@ ProgramStateRef ExprEngine::escapeValues(ProgramStateRef State,
 
 void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
                        ExplodedNodeSet &DstTop) {
+  pred_exploded_node = Pred;
   PrettyStackTraceLoc CrashInfo(getContext().getSourceManager(),
                                 S->getBeginLoc(), "Error evaluating statement");
   ExplodedNodeSet Dst;

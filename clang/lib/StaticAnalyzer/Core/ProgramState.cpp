@@ -298,35 +298,39 @@ SVal ProgramState::getSVal(Loc location, QualType T) const {
   return V;
 }
 
-struct Duplicate {
-	Environment *env;
+struct EnvironmentOrigins {
+	Environment env;
 	std::vector<ExplodedNode *> sources;
 };
 
 extern ExplodedGraph *exploded_graph;
-extern std::vector<Duplicate> dups;
+extern ExplodedNode *pred_exploded_node;
+extern std::vector<EnvironmentOrigins> envs;
 
 ProgramStateRef ProgramState::BindExpr(const Stmt *S,
                                            const LocationContext *LCtx,
-                                           SVal V, bool Invalidate) const{
+                                           SVal V, bool Invalidate) const {
   Environment NewEnv =
-    getStateManager().EnvMgr.bindExpr(Env, EnvironmentEntry(S, LCtx), V,
-                                      Invalidate);
+    getStateManager().EnvMgr.bindExpr(Env, EnvironmentEntry(S, LCtx), V, Invalidate);
 
-  Duplicate *d = nullptr;
-  for (int i = 0; i < dups.size(); i += 1) {
-    if (*dups[i].env == NewEnv) {
-      d = &dups[i];
+  EnvironmentOrigins *eo = nullptr;
+  bool NewEnv_is_first_seen = true;
+  for (unsigned i = 0; i < envs.size(); i += 1) {
+    if (envs[i].env == NewEnv) {
+		NewEnv_is_first_seen = false;
+		eo = &envs[i];
     }
   }
-  if (!d) {
-    dups.push_back({});
-  } 
+
+  if (NewEnv_is_first_seen) {
+    envs.push_back({NewEnv, {pred_exploded_node}});
+	eo = &envs[envs.size() - 1];
+  }
 
   for (ExplodedNode &node : exploded_graph->nodes()) {
      const Environment &env = node.getState()->getEnvironment();
      if (V == env.lookupExpr(EnvironmentEntry(S, LCtx))) {
-       d->sources.push_back(&node);
+       eo->sources.push_back(&node);
      }
   }
 
