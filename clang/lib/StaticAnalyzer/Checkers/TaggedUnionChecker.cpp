@@ -11,35 +11,6 @@
 
 #include <map>
 
-/*
- * Figyelmeztetések:
- * - Egy adott állandóval több adattagot is elérnek
- * - Nem használt állandó vagy unió adattag
- * - NONE vagy COUNT állandóval elérnek bármilyen adattagot
- * - Érvénytelen érték a tag mezőben (a megengedett értékeket ki lehet nyerni az AST-ből)
- *
- * A nem használtashoz viszont kellene egy olyan leképezés, hogy voltak-e használva
- * az egyes adattagok vagy állandók.
- * 
- * Lehet-e következtetni a hozzáfért unió adattagból az enum állandóra?
- *
- * Ha korábban volt olyan, hogy a tag1 hozzá volt rendelve a field1-hez és most
- * nem tudjuk, hogy mi a tag, de hozzáfértek a field1-hez, akkor elvárhatjuk-e azt,
- * hogy ilyenkor is a tag1 van érvényben? Ha egy unió adattaghoz több enum is 
- * tartozik, amire láttunk már példát, akkor így nem lehet következtetni.
- *
- * NoteTag
- *
- */
-
-#if 0
-
-Kitalálni
-
-Egymásban lévő tagged union-ok
-
-#endif
-
 using namespace clang;
 using namespace ento;
 
@@ -71,7 +42,6 @@ struct EnumStore {
 struct UnionAccess {
 	TaggedUnionId which_tagged_union;
 	bool IsLoad;
-	SVal tag_value;
 	const FieldDecl *accessed_union_field = nullptr;
 	const MemRegion *accessed_union_field_region = nullptr;
 	ExplodedNode *exploded_node;
@@ -110,10 +80,7 @@ class TaggedUnionChecker : public Checker<check::ASTDecl<TranslationUnitDecl>, c
 	mutable std::map<const RecordDecl*, std::map<llvm::APSInt, const FieldDecl*>> tagged_union_field_usages;
 	mutable std::vector<UnionAccess> pendingUnionAccesses;
 
-	// void checkEnumTagAssignment(SVal Loc, bool IsLoad, const Stmt *S, CheckerContext &C) const;
-
-	void processUnionAccess(const UnionAccess&,TaggedUnion &T, CheckerContext &C) const;
-	void checkEnumTagAccess(SVal Loc, bool IsLoad, const Stmt *S, CheckerContext &C) const;
+	void processUnionAccess(SVal tag_value, UnionAccess &a, TaggedUnion &T, const FieldRegion *enum_field_region, SVal Loc, CheckerContext &C) const;
     mutable MyMatchCallback MatchCallback;
     mutable clang::ast_matchers::MatchFinder Finder;
 
@@ -223,141 +190,7 @@ void MyMatchCallback::run(const clang::ast_matchers::MatchFinder::MatchResult &R
 
 }
 
-void TaggedUnionChecker::checkEnumTagAccess(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) const {
-	bool IsStore = !IsLoad;
-	using namespace clang::ast_matchers;
-
-	// llvm::errs() << '\n';
-	// Statement->dump();
-
-	auto *region = Loc.getAsRegion();
-	if (!region) return;
-
-	// Is this a data field
-	auto *field_region = region->getAs<FieldRegion>();
-	if (!field_region) return;
-
-	auto *super_fieldregion = field_region->getSuperRegion();
-	auto *tvr = super_fieldregion->getAs<TypedValueRegion>();
-	if (!tvr) return;
-
-	QualType qualtype_desugared = tvr->getDesugaredValueType(C.getASTContext());
-	const Type *desugared_type = qualtype_desugared.getTypePtrOrNull();
-	if (!desugared_type) return;
-	if (!desugared_type->isRecordType()) return;
-
-	const RecordType *desugared_record_type = desugared_type->getAsStructureType();
-	if (!desugared_record_type) return; 
-	const RecordDecl *root = desugared_record_type->getDecl();
-
-	AnalysisManager &Mgr = C.getAnalysisManager();
-	MatchCallback.initialize(&C.getBugReporter(), Mgr.getAnalysisDeclContext(root));
-	Finder.matchAST(Mgr.getASTContext()); // Is it possible to match this on a smaller AST?
-	if (!MatchCallback.enum_field || !MatchCallback.union_field) return;
-
-	MemRegionManager &memregion_manager = region->getMemRegionManager();
-	const FieldRegion *union_field_region = memregion_manager.getFieldRegion(MatchCallback.union_field, tvr);
-	const FieldRegion *enum_field_region = memregion_manager.getFieldRegion(MatchCallback.enum_field, tvr);
-
-#if 0
-  const NoteTag *constructSetEofNoteTag(CheckerContext &C, SymbolRef StreamSym) const {
-    return C.getNoteTag([this, StreamSym](PathSensitiveBugReport &BR) {
-      if (!BR.isInteresting(StreamSym) || &BR.getBugType() != this->getBT_StreamEof())
-        return "";
-
-      BR.markNotInteresting(StreamSym);
-
-      return FeofNote;
-    });
-  }
-#endif
-
-	if (region->isSubRegionOf(enum_field_region) && IsStore) {
-		const NoteTag *first_access_of_field = C.getNoteTag([enum_field_region](PathSensitiveBugReport &BR) {
-			return "The tag field of this tagged union is changed here";
-		});
-		C.addTransition(C.getState(), first_access_of_field);
-	}
-}
-
 static std::vector<std::string> report_messages;
-
-#define KindCase(kind_name) case kind_name: msg = #kind_name; break;
-
-const Stmt* CFGElementToStmt(CFGElement element) {
-	if (element.getKind() == clang::CFGElement::Kind::Statement)
-		if (auto cfgstmt = element.getAs<CFGStmt>())
-			return cfgstmt->getStmt();
-	return nullptr;
-}
-
-static void asdf(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) {
-	const LocationContext *Location = C.getLocationContext();
-	if (!Location) return;
-    llvm::errs() << "Got LocationContext!\n";
-
-	CFG *cfg = Location->getCFG();
-	if (!cfg) return;
-    llvm::errs() << "Got CFG!\n";
-	llvm::errs() << "CFG size: " << cfg->size() << '\n';
-    cfg->dump(C.getLangOpts(), true);
-	return;
-
-	for (CFGBlock *block : cfg->nodes()) {
-		for (unsigned i = 0; i < block->size(); i += 1) {
-			CFGElement element = (*block)[i];
-			if (const Stmt *stmt = CFGElementToStmt(element)) {
-				if (stmt == Statement) {
-					if (i != (~(unsigned)0) && i + 1 < block->size()) {
-						if (const Stmt *stmt2 = CFGElementToStmt((*block)[i+1])) {
-							if (dyn_cast<CStyleCastExpr>(stmt2)) { 
-								Statement->dump();
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-}
-
-#if 0
------------- Source ------------
-T.field_A = 5;
-T.tag = tag_A;
-
------------- CFG ------------
-T
-T.field_A
-5
-T.field_A = 5; <--- CheckLocation: SVal Loc: &T.field_A. Statement: .field_A gyökérkifejezése (MemberExpr)
-T
-T.tag
-tag_A
-T.tag = tag_A;
-
-ExplodedNode X: union field A assigned in tagged union object T1 of type TU1
-ExplodedNode Y: enum field B assigned in tagged union object T2 of type TU2
-
-I.   Is T1 the same object as T2?
-II.  Is TU1 the same type as TU2?
-III. Is X and Y on the same path of execution?
-IV.  Is Y "essentially right after" X?
-
-Solution for I.: Save the Memregion of the tagged union as a whole for both enum and union accesses
-Solution for II.: Save Tagged Union RecordDecl for both enum and union accesses
-Solution for III.: Either X must be the descendant of Y or Y must be the descendant of X in the exploded graph
-Solution for IV:
-
-* The two assignment operations should be right after each other in the AST
-* ASTContext: getParents method -> finding common parent compoundStmt
-* Iterating compoundStmt to see if they are after each other
-
-On union access save:
-* result of getCFGElementRef()
-* const RecordDecl * of the accessed tagged union
-* 
-#endif
 
 TaggedUnionId getRecordDeclOfSuperRegion(const FieldRegion *field_region, CheckerContext &C) {
 	TaggedUnionId result;
@@ -387,115 +220,86 @@ bool firstIsRightBeforeSecondInCompoundStmt(const Stmt *unionAccess, const Stmt 
 	return false;
 }
 
-#if 0
-void TaggedUnionChecker::pairTagAccessWithPendingUnionAccess(const TaggedUnionId id, CheckerContext &C) const {
-	if (auto *cfgstmt = C.getCFGElementRef()->getAs<clang::CFGStmt>()) {
-		if (UnionAccess.access_stmt_parent_compound_stmt) {
-			for (auto &UnionAccess : pendingUnionAccesses) {
-				bool result = firstIsAfterSecondInCompoundStmt(UnionAccess.access_stmt, cfgstmt, UnionAccess.access_stmt_parent_compound_stmt);
-				if (result) {
-					result &&= UnionAccess.tagged_union_decl == access.tagged_union_decl;
-				}
-				if (result) {
-					result &&= UnionAccess.tagged_union_memregion == access.tagged_union_memregion;
-				}
-			}
-		}
-	}
-	// TODO: Implement
-	
-}
-
-void TaggedUnionChecker::saveUnionFieldAccess(const TaggedUnionAccess &access, CheckerContext &C) const {
-	auto cfgelement = C.getCFGElementRef();
-	if (auto cfgstmt = cfgelement->getAs<clang::CFGStmt>()) {
-		const DynTypedNodeList parents = C.getAnalysisManager().getASTContext().getParents(*cfgstmt->getStmt());
-		if (parents.size() == 1) {
-			if (const CompoundStmt *compoundstmt = parents[0].get<CompoundStmt>()) {
-				PendingTaggedUnionAccess pending{
-					C.addTransition(),
-						compoundstmt,
-						cfgstmt->getStmt(),
-						C,
-						access.tagged_union_decl,
-						access.accessed_union_field,
-						access.tag_value_sval,
-				};
-				pendingUnionAccesses.emplace_back(pending);
-			}
-		}
-	}
-}
-#endif
-
 static const bool debug_dump_candidate_tagged_union = false;
 static const bool debug_dump_union_field_accesses = false;
 static const bool debug_peek_ahead_for_immediate_enum_tag_access = false;
 static const bool debug_dump_enum_tag_writes = false;
 static const bool debug_dump_possible_reverse_initialization = true;
 
-void TaggedUnionChecker::processUnionAccess(const UnionAccess &a, TaggedUnion &T, CheckerContext &C) const {
-	if (a.tag_value.getAsInteger() && a.accessed_union_field) {
-					auto &map_for_current = tagged_union_invariants[a.which_tagged_union.decl];
-					auto expected_field = map_for_current.find(*a.tag_value.getAsInteger());
-					if (expected_field != map_for_current.end()) {
-						if (a.accessed_union_field != expected_field->second) {
-							ExplodedNode *N = C.generateNonFatalErrorNode();
+void TaggedUnionChecker::processUnionAccess(SVal tag_value, UnionAccess &a, TaggedUnion &T, const FieldRegion *enum_field_region, SVal Loc, CheckerContext &C) const {
+	if (tag_value.getAsInteger() && a.accessed_union_field) {
+		auto &map_for_current = tagged_union_invariants[a.which_tagged_union.decl];
+		auto expected_field = map_for_current.find(*tag_value.getAsInteger());
+		if (expected_field != map_for_current.end()) {
+			if (a.accessed_union_field != expected_field->second) {
+				ExplodedNode *N = C.generateNonFatalErrorNode();
 
-							EnumDecl *enum_declaration = llvm::dyn_cast<EnumDecl>(T.enum_field_decl->getType().getCanonicalType().getTypePtr()->getAsTagDecl());
-							const EnumConstantDecl *matched_decl = nullptr;
-							for (const EnumConstantDecl *Enumerator : enum_declaration->enumerators()) {
-								if (Enumerator->getInitVal().isRepresentableByInt64() && a.tag_value.getAsInteger()->isRepresentableByInt64() && Enumerator->getInitVal().getExtValue() == a.tag_value.getAsInteger()->getExtValue()) {
-									matched_decl = Enumerator;
-									break;
-								}
-							}
-
-							report_messages.push_back("The '");
-							std::string *new_message = &report_messages[report_messages.size() - 1];
-							new_message->append(matched_decl->getName());
-							new_message->append("' enum constant is used to access the '");
-							new_message->append(a.accessed_union_field->getName());
-							new_message->append("' union member, when previously it accessed '");
-							new_message->append(expected_field->second->getName());
-							new_message->append("' in this tagged union");
-
-							auto Report = std::make_unique<PathSensitiveBugReport>(BT, *new_message, N);
-							Report->markInteresting(union_field_region);
-							Report->markInteresting(enum_field_region);
-							bugreporter::trackStoredValue(Loc, union_field_region, *Report);
-							C.emitReport(std::move(Report));
-						}
-					} else {
-						map_for_current.emplace(*a.tag_value.getAsInteger(), a.accessed_union_field);
-						ExplodedNode *N = C.generateNonFatalErrorNode();
-
-						EnumDecl *enum_declaration = llvm::dyn_cast<EnumDecl>(T.enum_field_decl->getType().getCanonicalType().getTypePtr()->getAsTagDecl());
-						const EnumConstantDecl *matched_decl;
-						for (const EnumConstantDecl *Enumerator : enum_declaration->enumerators()) {
-							if (Enumerator->getInitVal().isRepresentableByInt64() && a.tag_value.getAsInteger()->isRepresentableByInt64() && Enumerator->getInitVal().getExtValue() == a.tag_value.getAsInteger()->getExtValue()) {
-								matched_decl = Enumerator;
-								break;
-							}
-						}
-						report_messages.push_back("");
-						std::string *new_message = &report_messages[report_messages.size() - 1];
-						new_message->append(matched_decl->getName());
-						new_message->append(" is matched with the union field called '");
-						new_message->append(a.accessed_union_field->getName());
-						new_message->append("' in this tagged union");
-
-						auto Report = std::make_unique<PathSensitiveBugReport>(BT, *new_message, N);
-						Report->markInteresting(union_field_region);
-						Report->markInteresting(enum_field_region);
-						bugreporter::trackStoredValue(Loc, union_field_region, *Report);
-						const NoteTag *first_access_of_field = C.getNoteTag([enum_field_region](PathSensitiveBugReport &BR) {
-								return "First access of field!";
-								});
-						C.addTransition(C.getState(), first_access_of_field);
-						C.emitReport(std::move(Report));
+				EnumDecl *enum_declaration = llvm::dyn_cast<EnumDecl>(T.enum_field_decl->getType().getCanonicalType().getTypePtr()->getAsTagDecl());
+				const EnumConstantDecl *matched_decl = nullptr;
+				for (const EnumConstantDecl *Enumerator : enum_declaration->enumerators()) {
+					if (Enumerator->getInitVal().isRepresentableByInt64() && tag_value.getAsInteger()->isRepresentableByInt64() && Enumerator->getInitVal().getExtValue() == tag_value.getAsInteger()->getExtValue()) {
+						matched_decl = Enumerator;
+						break;
 					}
 				}
+
+				report_messages.push_back("The '");
+				std::string *new_message = &report_messages[report_messages.size() - 1];
+				new_message->append(matched_decl->getName());
+				new_message->append("' enum constant is used to access the '");
+				new_message->append(a.accessed_union_field->getName());
+				new_message->append("' union member, when previously it accessed '");
+				new_message->append(expected_field->second->getName());
+				new_message->append("' in this tagged union");
+
+				auto Report = std::make_unique<PathSensitiveBugReport>(BT, *new_message, N);
+				Report->markInteresting(a.accessed_union_field_region);
+				Report->markInteresting(enum_field_region);
+				bugreporter::trackStoredValue(Loc, a.accessed_union_field_region, *Report);
+
+				if (a.report) {
+					// If the union access caused a report, but then it turns out that it part of a reverse tagged union initialization,
+					// where even that reverse initialization also causes a report at the enum update, then the reverse initialization report should
+					// be presented to the user and the earlier one for the union access should be marked as invalid.
+					a.report->markInvalid(nullptr, nullptr);
+				} else {
+					a.report = Report.get();
+				}
+
+				C.emitReport(std::move(Report));
+			} else if (a.report) {
+				a.report->markInvalid(nullptr, nullptr);
+			}
+		} else {
+			map_for_current.emplace(*tag_value.getAsInteger(), a.accessed_union_field);
+			ExplodedNode *N = C.generateNonFatalErrorNode();
+
+			EnumDecl *enum_declaration = llvm::dyn_cast<EnumDecl>(T.enum_field_decl->getType().getCanonicalType().getTypePtr()->getAsTagDecl());
+			const EnumConstantDecl *matched_decl;
+			for (const EnumConstantDecl *Enumerator : enum_declaration->enumerators()) {
+				if (Enumerator->getInitVal().isRepresentableByInt64() && tag_value.getAsInteger()->isRepresentableByInt64() && Enumerator->getInitVal().getExtValue() == tag_value.getAsInteger()->getExtValue()) {
+					matched_decl = Enumerator;
+					break;
+				}
+			}
+			report_messages.push_back("");
+			std::string *new_message = &report_messages[report_messages.size() - 1];
+			new_message->append(matched_decl->getName());
+			new_message->append(" is matched with the union field called '");
+			new_message->append(a.accessed_union_field->getName());
+			new_message->append("' in this tagged union");
+
+			auto Report = std::make_unique<PathSensitiveBugReport>(BT, *new_message, N);
+			Report->markInteresting(a.accessed_union_field_region);
+			Report->markInteresting(enum_field_region);
+			bugreporter::trackStoredValue(Loc, a.accessed_union_field_region, *Report);
+			const NoteTag *first_access_of_field = C.getNoteTag([enum_field_region](PathSensitiveBugReport &BR) {
+					return "First access of field!";
+					});
+			C.addTransition(C.getState(), first_access_of_field);
+			C.emitReport(std::move(Report));
+		}
+	}
 }
 
 void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statement, CheckerContext &C) const {
@@ -543,6 +347,8 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 							assignment_stmt->dump();
 						}
 						SVal new_enum_value = C.getSVal(assignment_stmt->getRHS());
+						llvm::errs() << new_enum_value.getKind() << '\n';
+						llvm::errs() << clang::ento::SVal::SValKind::UndefinedValKind << '\n';
 						for (auto &UnionAccess : pendingUnionAccesses) {
 							const DynTypedNodeList parents = C.getAnalysisManager().getASTContext().getParents(*access_stmt);
 							if (parents.size() == 1) {
@@ -570,43 +376,35 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 										assignment_stmt->dump();
 										llvm::errs() << "\n";
 									}
-									// assert(UnionAccess.report && "Every UnionAccess should have a bugreport (which may be invalidated later, but it must exist)!");
-									if (UnionAccess.report) {
-										// UnionAccess.report->markInvalid(nullptr, nullptr);
-										llvm::errs() << "Possibly invalidate a previous union access report!\n";
-										
-									}
+									llvm::errs() << "Possibly invalidate a previous union access report!\n";
+									processUnionAccess(new_enum_value, UnionAccess, T, field_region, Loc, C);
 								}
 							}
 						}
 					}
+				} else {
+					C.addTransition(C.getState(), C.getNoteTag([field_region](PathSensitiveBugReport &BR) {
+						return "The tag field of this tagged union is changed here";
+					}));
 				}
-			// FIXME: This is should be super region of field_region
-			// In the union case this field_region inside the union, not the union itself in the tagged union
 			} else if (super_fieldregion && super_fieldregion->getDecl() == T.union_field_decl) {
 				 
 				// TODO: Is there a way to get the enum_field_region without calling getFieldRegion?
 				MemRegionManager &m = C.getStoreManager().getRegionManager();
 				const FieldRegion *enum_field_region = m.getFieldRegion(T.enum_field_decl, tagged_union_candidate.region);
-				const FieldRegion *union_field_region = m.getFieldRegion(T.union_field_decl, tagged_union_candidate.region);
+				// TODO: Is this necessary to retrive or not?
+				// const FieldRegion *union_field_region = m.getFieldRegion(T.union_field_decl, tagged_union_candidate.region);
 				QualType enum_type = enum_field_region->getValueType();
 
 				UnionAccess a;
 				a.which_tagged_union = tagged_union_candidate;
 				a.IsLoad = IsLoad;
-				a.tag_value = C.getState()->getSVal(enum_field_region, enum_type);
 				a.accessed_union_field = field_region->getDecl();
 				a.accessed_union_field_region = field_region;
 				a.exploded_node = C.getPredecessor();
-				a.access_stmt = C.getCFGElementRef()->getAs<clang::CFGStmt>()->getStmt(); // Should be a CFGStmt as checkLocation is load or store, right?
+				a.access_stmt = C.getCFGElementRef()->getAs<clang::CFGStmt>()->getStmt(); // Should be a CFGStmt, as checkLocation is load or store, right?
 				a.report = nullptr;
-
-				
-
-				// if () {
-				// 	a.report = std::make_unique<PathSensitiveBugReport>(BT, *new_message, N);
-				// }
-
+				processUnionAccess(C.getState()->getSVal(enum_field_region, enum_type), a, T, enum_field_region, Loc, C);
 				pendingUnionAccesses.push_back(a);
 
 				if (debug_peek_ahead_for_immediate_enum_tag_access) {
@@ -647,23 +445,6 @@ void TaggedUnionChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *Statem
 			return;
 		}
 	}
-
-#if 0
-		const FieldRegion *union_field_region = memregion_manager.getFieldRegion(MatchCallback.union_field, tagged_union_candidate.region);
-		const FieldRegion *enum_field_region = ;
-		if (union_field_region && enum_field_region) {
-			const ProgramStateRef &programstate = C.getState();
-			QualType enum_type = enum_field_region->getValueType();
-			SVal enum_value_sval = programstate->getSVal(enum_field_region, enum_type);
-
-			for (auto *decl : T.union_decl->fields()) {
-				const FieldRegion *decl_region = memregion_manager.getFieldRegion(decl, union_field_region);
-				if (region->isSubRegionOf(decl_region)) {
-					return;
-				}
-			}
-		}
-#endif
 }
 
 void TaggedUnionChecker::checkASTDecl(const TranslationUnitDecl *D, AnalysisManager &Mgr, BugReporter &BR) const {
@@ -678,4 +459,3 @@ void ento::registerTaggedUnionChecker(CheckerManager &Mgr) {
 bool ento::shouldRegisterTaggedUnionChecker(const CheckerManager &mgr) {
 	return true;
 }
-
