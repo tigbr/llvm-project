@@ -327,12 +327,15 @@ ProgramStateRef ProgramState::BindExpr(const Stmt *S,
 	eo = &envs[envs.size() - 1];
   }
 
+  eo->sources.push_back(pred_exploded_node);
+#if 0
   for (ExplodedNode &node : exploded_graph->nodes()) {
      const Environment &env = node.getState()->getEnvironment();
      if (V == env.lookupExpr(EnvironmentEntry(S, LCtx))) {
        eo->sources.push_back(&node);
      }
   }
+#endif
 
   if (NewEnv == Env)
     return this;

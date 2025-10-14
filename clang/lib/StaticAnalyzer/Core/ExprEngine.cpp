@@ -992,21 +992,21 @@ void ExprEngine::processEndWorklist() {
   PrettyStackTraceLocationContext CrashInfo(getRootLocationContext());
   getCheckerManager().runCheckersForEndAnalysis(G, BR, *this);
 
-  unsigned max_appearance_count = 0;
-  double average_appearance = 0;
+	using vsize_t = std::vector<clang::ento::ExplodedNode*>::size_type;
+
   unsigned parent_child_redundancy_count = 0;
   for (EnvironmentOrigins &ea : envs) {
-	if (ea.sources.size() > max_appearance_count) {
-		max_appearance_count = ea.sources.size();
-	}
-	 for (int i = 0; i < ea.sources.size(); i += 1) {
-		for (int j = 0; j < i; j += 1) {
-			if (is_pred_succ_relationship(ea.sources[j], ea.sources[i])) {
-				
+	 for (vsize_t i = 0; i < ea.sources.size(); i += 1) {
+		for (vsize_t j = i + 1; j < ea.sources.size(); j += 1) {
+			if (is_pred_succ_relationship(ea.sources[i], ea.sources[j])) {
+				parent_child_redundancy_count += 1;
 			}
 		}
     }
+	llvm::errs() << "Environment occurance: " << ea.sources.size() << '\n';
   }
+
+  llvm::errs() << "Parent child redundancy count: " << parent_child_redundancy_count << '\n';
 }
 
 void ExprEngine::processCFGElement(const CFGElement E, ExplodedNode *Pred,
