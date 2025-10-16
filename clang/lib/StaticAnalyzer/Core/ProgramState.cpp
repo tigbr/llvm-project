@@ -299,7 +299,7 @@ SVal ProgramState::getSVal(Loc location, QualType T) const {
 }
 
 struct EnvironmentOrigins {
-	Environment env;
+	const Environment *env;
 	std::vector<ExplodedNode *> sources;
 };
 
@@ -313,36 +313,28 @@ ProgramStateRef ProgramState::BindExpr(const Stmt *S,
   Environment NewEnv =
     getStateManager().EnvMgr.bindExpr(Env, EnvironmentEntry(S, LCtx), V, Invalidate);
 
-  EnvironmentOrigins *eo = nullptr;
-  bool NewEnv_is_first_seen = true;
-  for (unsigned i = 0; i < envs.size(); i += 1) {
-    if (envs[i].env == NewEnv) {
-		NewEnv_is_first_seen = false;
-		eo = &envs[i];
+  using vsize_t = std::vector<EnvironmentOrigins*>::size_type;
+
+  bool env_is_first_encountered = true;
+  for (vsize_t i = 0; i < envs.size(); i += 1) {
+    if (*envs[i].env == NewEnv) {
+		env_is_first_encountered = false;
+		envs[i].sources.push_back(pred_exploded_node);
     }
   }
-
-  if (NewEnv_is_first_seen) {
-    envs.push_back({NewEnv, {pred_exploded_node}});
-	eo = &envs[envs.size() - 1];
-  }
-
-  eo->sources.push_back(pred_exploded_node);
-#if 0
-  for (ExplodedNode &node : exploded_graph->nodes()) {
-     const Environment &env = node.getState()->getEnvironment();
-     if (V == env.lookupExpr(EnvironmentEntry(S, LCtx))) {
-       eo->sources.push_back(&node);
-     }
-  }
-#endif
 
   if (NewEnv == Env)
     return this;
 
   ProgramState NewSt = *this;
   NewSt.Env = NewEnv;
-  return getStateManager().getPersistentState(NewSt);
+
+  auto Result = getStateManager().getPersistentState(NewSt);
+  if (env_is_first_encountered) {
+    envs.push_back(EnvironmentOrigins{&Result->getEnvironment(), {pred_exploded_node}});
+  }
+
+  return Result;
 }
 
 [[nodiscard]] std::pair<ProgramStateRef, ProgramStateRef>

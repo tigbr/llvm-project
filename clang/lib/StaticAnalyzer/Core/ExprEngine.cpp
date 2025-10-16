@@ -963,7 +963,7 @@ void ExprEngine::printJson(raw_ostream &Out, ProgramStateRef State,
 }
 
 struct EnvironmentOrigins {
-	Environment env;
+	const Environment *env;
 	std::vector<ExplodedNode *> sources;
 };
 
