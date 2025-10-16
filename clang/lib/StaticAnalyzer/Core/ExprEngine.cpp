@@ -967,13 +967,6 @@ struct EnvironmentOrigins {
 	std::vector<ExplodedNode *> sources;
 };
 
-enum NodeRelation {
-	nr_first,
-	nr_parent_child,
-	nr_other,
-	nr_count
-};
-
 std::vector<EnvironmentOrigins> envs;
 
 static bool is_pred_succ_relationship(ExplodedNode *a, ExplodedNode *b) {
@@ -1007,6 +1000,9 @@ void ExprEngine::processEndWorklist() {
   }
 
   llvm::errs() << "Parent child redundancy count: " << parent_child_redundancy_count << '\n';
+
+  parent_child_redundancy_count = 0;
+  envs.clear();
 }
 
 void ExprEngine::processCFGElement(const CFGElement E, ExplodedNode *Pred,
