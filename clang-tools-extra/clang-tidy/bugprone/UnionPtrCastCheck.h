@@ -28,13 +28,13 @@ public:
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 
 private:
-  const bool AlwaysAllowCastToVoidPtr;
-  const bool AlwaysAllowCastToCharPtr;
-  const bool AllowCastToSubFields;
   const bool AllowCastToBaseClass;
+  const bool AllowCastToSubField;
+  const bool AlwaysAllowCastToCharPtr;
+  const bool AlwaysAllowCastToVoidPtr;
+  const bool CompareCanonicalTypes;
   const bool IgnoreIfUnionIsFromStdNamespace;
   const bool IgnoreIfUnionIsFromSystemHeader;
-  const bool CompareCanonicalTypes;
 
   bool hasFieldOfType(const PointerType *Target, const RecordDecl *Record) const;
   bool shouldWarn(const PointerType *CastTargetPointerType, const RecordDecl *Union) const;

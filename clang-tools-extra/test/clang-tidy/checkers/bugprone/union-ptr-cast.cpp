@@ -12,6 +12,20 @@ using ShortPtrUsingUsing = ShortPtrUsing;
 using ShortPtrUsingPtr = ShortPtrUsing*;
 using LongPtrUsing = long*;
 
+struct Bar {
+  void *F1;
+};
+
+struct Foo {
+  struct Bar F1;
+  void **F2;
+};
+
+union FooBar {
+  struct Foo F1;
+  double **F2;
+};
+
 class Base { int I; };
 class PublicDerived : public Base { };
 class ProtectedDerived : protected Base { };
@@ -26,12 +40,13 @@ union MyUnion {
   short F4;
   float F5;
   ShortPtrTypedef F6;
-  ShortPtrUsing F7;
-  PublicDerived F8;
-  ProtectedDerived F9;
-  PrivateDerived F10;
-  PublicDerived2 F11;
-  PublicDerived3 F12;
+  union FooBar F7;
+  ShortPtrUsing F8;
+  PublicDerived F9;
+  ProtectedDerived F10;
+  PrivateDerived F11;
+  PublicDerived2 F12;
+  PublicDerived3 F13;
 };
 
 typedef union MyUnion TypedefMyUnion;
@@ -153,10 +168,6 @@ void castToTypeInUnion(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {
   reinterpret_cast<ShortPtrUsingUsing>(UU);
 }
 
-void castToTypedefOrUsingPtr() {
-  
-}
-
 void castToBaseClassPointerTest() {
   union { PublicDerived  field; } *U1;
   typedef union { PublicDerived  field; } TypedefU1;
@@ -219,45 +230,81 @@ void castToBaseClassPointerTest() {
   reinterpret_cast<Base*>(UU5);
 }
 
-void optionDependentDefaultBehaviors(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {
-  // These implicit casts do not give an error in C++, so it is included here.
-  void *V = U;
-  V = TU;
-  V = UU;
+#include "stdnamespace.h"
+#include <pthread.h>
 
+void optionDependentDefaultBehaviors(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {
+  /* AllowCastToCharPtr */
+  // Implicit casts to char* cause compile errors
   (char*) U;
   (char*) TU;
   (char*) UU;
-
-  (void*) U;
-  (void*) TU;
-  (void*) UU;
-
   reinterpret_cast<char*>(U);
   reinterpret_cast<char*>(TU);
   reinterpret_cast<char*>(UU);
 
+  /* AllowCastToVoidPtr */
+  void *V;
+  V = U;
+  V = TU;
+  V = UU;
+  (void*) U;
+  (void*) TU;
+  (void*) UU;
   reinterpret_cast<void*>(U);
   reinterpret_cast<void*>(TU);
   reinterpret_cast<void*>(UU);
-}
 
-// By default, do not analyze cast expressions where the pointee union
-// comes from the std namespace or from a system header file.
+  /* AllowCastToSubField */
+  struct Foo *SubFieldPtr1;
+  (struct Foo*) U;
+  (struct Foo*) TU;
+  (struct Foo*) UU;
+  reinterpret_cast<struct Foo*>(U);
+  reinterpret_cast<struct Foo*>(TU);
+  reinterpret_cast<struct Foo*>(UU);
 
-#include "stdnamespace.h"
-#include <pthread.h>
+  double ***SubFieldPtr2;
+  (double***) U;
+  (double***) TU;
+  (double***) UU;
+  reinterpret_cast<double***>(U);
+  reinterpret_cast<double***>(TU);
+  reinterpret_cast<double***>(UU);
 
-void fromStdNamespace(std::pthread_mutex_t *T) {
-  void *P = T;
-  (void*) T;
-  reinterpret_cast<void*>(T);
-}
+  struct Bar *SubFieldPtr3;
+  (struct Bar*) U;
+  (struct Bar*) TU;
+  (struct Bar*) UU;
+  reinterpret_cast<struct Bar*>(U);
+  reinterpret_cast<struct Bar*>(TU);
+  reinterpret_cast<struct Bar*>(UU);
 
-void fromStdNamespace(pthread_mutex_t *T) {
-  void *P = T;
-  (void*) T;
-  reinterpret_cast<void*>(T);
+  void ***SubFieldPtr4;
+  (void ***) U;      // CHECK-MESSAGES: :[[@LINE]]:14: warning: the union pointed to by this expression has no field with the type 'void **'
+  (void ***) TU;     // CHECK-MESSAGES: :[[@LINE]]:14: warning: the union pointed to by this expression has no field with the type 'void **'
+  (void ***) UU;     // CHECK-MESSAGES: :[[@LINE]]:14: warning: the union pointed to by this expression has no field with the type 'void **'
+  reinterpret_cast<void ***>(U);  // CHECK-MESSAGES: :[[@LINE]]:30: warning: the union pointed to by this expression has no field with the type 'void **'
+  reinterpret_cast<void ***>(TU); // CHECK-MESSAGES: :[[@LINE]]:30: warning: the union pointed to by this expression has no field with the type 'void **'
+  reinterpret_cast<void ***>(UU); // CHECK-MESSAGES: :[[@LINE]]:30: warning: the union pointed to by this expression has no field with the type 'void **'
+
+  void **SubFieldPtr5;
+  (void **) U;
+  (void **) TU;
+  (void **) UU;
+  reinterpret_cast<void **>(U);
+  reinterpret_cast<void **>(TU);
+  reinterpret_cast<void **>(UU);
+
+  /* IgnoreIfUnionIsFromStdNamespace */
+  std::pthread_mutex_t *T1;
+  (double*) T1;
+  reinterpret_cast<double*>(T1);
+
+  /* IgnoreIfUnionIsFromSystemHeader */
+  pthread_mutex_t *T2;
+  (double*) T2;
+  reinterpret_cast<double*>(T2);
 }
 
 void irrelevantCastExpressions(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {

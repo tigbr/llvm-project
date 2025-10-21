@@ -53,8 +53,16 @@ namely, ``short *``.
     (IntPtr) U; // warning: the union pointed to by this expression has no field with the type 'int'
   }
 
-The check is aware of C++ inheritance. A cast is also accepted if the ``union``
-has a field whose type is a subtype of the cast target's pointee type.
+Options
+-------
+
+.. option:: AllowCastToBaseClass
+
+This option is enabled by default.
+
+When enabled, the check becomes aware of C++ inheritance. A cast is also
+accepted if the ``union`` has a field whose type is a subtype of the cast
+target's pointee type.
 
 .. code-block:: c++
 
@@ -73,8 +81,11 @@ has a field whose type is a subtype of the cast target's pointee type.
     B = reinterpret_cast<Base*>(U);
   }
 
-Options
--------
+.. option:: AllowCastToSubField (C only)
+
+This option is enabled by default.
+
+Further 
 
 .. option:: AlwaysAllowCastToCharPtr, AlwaysAllowCastToVoidPtr
 
@@ -92,7 +103,7 @@ These options toggle whether a cast should be ignored when the ``union``
 pointed by the source expression is declared in the ``std::`` namespace or in
 a system header file.
 
-.. option :: CompareCanonicalTypes
+.. option:: CompareCanonicalTypes
 
 This option is disabled by default.
 
@@ -101,6 +112,10 @@ and the ``union`` field types. This means that the types are converted to their
 most fundamental form by removing all sugar, ``typedef``, ``using`` etc. layers.
 This operation preserves the levels of indirection and the qualifiers introduced
 by the type aliases.
+
+This option can be useful, for instance, when the type aliases in question are
+just shorthands, such as ``typedef unsigned int uint;``, and they do not carry
+any semantic information, like ``pid_t`` does for instance.
 
 The following example shows a few different examples for how this option affects
 the interpretation of types.

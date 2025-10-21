@@ -5,14 +5,9 @@ typedef short *ShortPtrTypedef;
 typedef ShortPtrTypedef ShortPtrTypedefTypedef;
 typedef ShortPtrTypedef *ShortPtrTypedefPtr;
 typedef long *LongPtrTypedef;
-typedef ShortPtrTypedefPtr ShortPtrTypedefPtrTypedef;
-
 
 typedef float *FloatPtrTypedef;
 typedef FloatPtrTypedef *FloatPtrTypedefPtrTypedef;
-
-typedef short Short;
-typedef Short *ShortPtr;
 
 struct Bar {
   void *F1;
@@ -107,13 +102,13 @@ void optionDependentDefaultBehaviors(union MyUnion *U, TypedefMyUnion *TU) {
   (char*) U;
   (char*) TU;
 
-  /* AllowCastToCharPtr */
+  /* AllowCastToVoidPtr */
   void *V = U;
   V = TU;
   (void*) U;
   (void*) TU;
 
-  /* AllowCastToSubFields */
+  /* AllowCastToSubField */
   struct Foo *SubFieldPtr1;
   SubFieldPtr1 = U;
   SubFieldPtr1 = TU;

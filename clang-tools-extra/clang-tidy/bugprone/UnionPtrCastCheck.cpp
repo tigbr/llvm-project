@@ -24,13 +24,14 @@ static constexpr llvm::StringLiteral CastBindName = "cast";
   option_name(Options.get(#option_name, default_value))
 
 UnionPtrCastCheck::UnionPtrCastCheck(StringRef Name, ClangTidyContext *Context)
-    : ClangTidyCheck(Name, Context), InitOption(AlwaysAllowCastToVoidPtr, true),
-      InitOption(AlwaysAllowCastToCharPtr, true),
-      InitOption(AllowCastToSubFields, true),
+    : ClangTidyCheck(Name, Context),
       InitOption(AllowCastToBaseClass, true),
+      InitOption(AllowCastToSubField, true),
+      InitOption(AlwaysAllowCastToCharPtr, true),
+      InitOption(AlwaysAllowCastToVoidPtr, true),
+      InitOption(CompareCanonicalTypes, false),
       InitOption(IgnoreIfUnionIsFromStdNamespace, true),
-      InitOption(IgnoreIfUnionIsFromSystemHeader, true),
-      InitOption(CompareCanonicalTypes, false) {}
+      InitOption(IgnoreIfUnionIsFromSystemHeader, true) { }
 
 bool UnionPtrCastCheck::isLanguageVersionSupported(
     const LangOptions &LangOpts) const {
@@ -94,6 +95,10 @@ static bool fieldDerivesFrom(const FieldDecl *Field,
   return false;
 }
 
+static bool langOptIsC(const LangOptions &Options) {
+	if (Options.C99) return true;
+}
+
 bool UnionPtrCastCheck::hasFieldOfType(const PointerType *Target, const RecordDecl *Record) const {
   if (!Record)
     return false;
@@ -105,7 +110,7 @@ bool UnionPtrCastCheck::hasFieldOfType(const PointerType *Target, const RecordDe
       return true;
     if (AllowCastToBaseClass && fieldDerivesFrom(Field, Target->getPointeeCXXRecordDecl()))
       return true;
-    if (AllowCastToSubFields && hasFieldOfType(Target, FieldType.getTypePtr()->getAsRecordDecl()))
+    if (langOptIsC(getLangOpts()) && AllowCastToSubField && hasFieldOfType(Target, FieldType.getTypePtr()->getAsRecordDecl()))
       return true;
     if (!Record->isUnion())
       break;
