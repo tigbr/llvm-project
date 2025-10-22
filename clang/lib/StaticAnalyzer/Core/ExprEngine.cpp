@@ -970,6 +970,7 @@ struct EnvironmentOrigins {
 std::vector<EnvironmentOrigins> envs;
 
 static bool is_pred_succ_relationship(ExplodedNode *a, ExplodedNode *b) {
+	if (a == nullptr || b == nullptr) return false;
     if (a == b) return false;
 	for (ExplodedNode *pred_a : a->preds()) {
 		if (pred_a == b) return true;
@@ -977,7 +978,7 @@ static bool is_pred_succ_relationship(ExplodedNode *a, ExplodedNode *b) {
 	for (ExplodedNode *pred_b : b->preds()) {
 		if (pred_b == a) return true;
 	}
-	return true;
+	return false;
 }
 
 void ExprEngine::processEndWorklist() {
@@ -987,8 +988,10 @@ void ExprEngine::processEndWorklist() {
 
 	using vsize_t = std::vector<clang::ento::ExplodedNode*>::size_type;
 
-  unsigned parent_child_redundancy_count = 0;
+  llvm::errs() << "Environment occurrences\tParent child redundancy count\n";
+
   for (EnvironmentOrigins &ea : envs) {
+     unsigned parent_child_redundancy_count = 0;
 	 for (vsize_t i = 0; i < ea.sources.size(); i += 1) {
 		for (vsize_t j = i + 1; j < ea.sources.size(); j += 1) {
 			if (is_pred_succ_relationship(ea.sources[i], ea.sources[j])) {
@@ -996,12 +999,9 @@ void ExprEngine::processEndWorklist() {
 			}
 		}
     }
-	llvm::errs() << "Environment occurance: " << ea.sources.size() << '\n';
+	llvm::errs() << ea.sources.size() << '\t' << parent_child_redundancy_count << "\n";
   }
 
-  llvm::errs() << "Parent child redundancy count: " << parent_child_redundancy_count << '\n';
-
-  parent_child_redundancy_count = 0;
   envs.clear();
 }
 
