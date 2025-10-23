@@ -221,6 +221,8 @@ static const char* TagProviderName = "ExprEngine";
 
 ExplodedGraph *exploded_graph;
 ExplodedNode *pred_exploded_node;
+clang::Stmt::StmtClass current_stmt_class;
+unsigned prev_environment_equal_to_current_count;
 
 ExprEngine::ExprEngine(cross_tu::CrossTranslationUnitContext &CTU,
                        AnalysisManager &mgr, SetOfConstDecls *VisitedCalleesIn,
@@ -989,6 +991,7 @@ void ExprEngine::processEndWorklist() {
 	using vsize_t = std::vector<clang::ento::ExplodedNode*>::size_type;
 
   llvm::errs() << "Environment occurrences\tParent child redundancy count\n";
+  llvm::errs() << "prev_environment_equal_to_current_count: " << prev_environment_equal_to_current_count << '\n';
 
   for (EnvironmentOrigins &ea : envs) {
      unsigned parent_child_redundancy_count = 0;
@@ -1002,6 +1005,7 @@ void ExprEngine::processEndWorklist() {
 	llvm::errs() << ea.sources.size() << '\t' << parent_child_redundancy_count << "\n";
   }
 
+  prev_environment_equal_to_current_count = 0;
   envs.clear();
 }
 
@@ -1752,6 +1756,7 @@ ProgramStateRef ExprEngine::escapeValues(ProgramStateRef State,
 void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
                        ExplodedNodeSet &DstTop) {
   pred_exploded_node = Pred;
+  current_stmt_class = S->getStmtClass();
   PrettyStackTraceLoc CrashInfo(getContext().getSourceManager(),
                                 S->getBeginLoc(), "Error evaluating statement");
   ExplodedNodeSet Dst;

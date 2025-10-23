@@ -306,6 +306,7 @@ struct EnvironmentOrigins {
 extern ExplodedGraph *exploded_graph;
 extern ExplodedNode *pred_exploded_node;
 extern std::vector<EnvironmentOrigins> envs;
+extern unsigned prev_environment_equal_to_current_count;
 
 ProgramStateRef ProgramState::BindExpr(const Stmt *S,
                                            const LocationContext *LCtx,
@@ -323,8 +324,10 @@ ProgramStateRef ProgramState::BindExpr(const Stmt *S,
     }
   }
 
-  if (NewEnv == Env)
+  if (NewEnv == Env) {
+    prev_environment_equal_to_current_count += 1;
     return this;
+  }
 
   ProgramState NewSt = *this;
   NewSt.Env = NewEnv;
