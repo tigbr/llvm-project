@@ -983,6 +983,107 @@ static bool is_pred_succ_relationship(ExplodedNode *a, ExplodedNode *b) {
 	return false;
 }
 
+bool first_reachable_from_second(ExplodedNode *a, ExplodedNode *other) {
+	for (ExplodedNode *p : other->succs()) {
+		if (p == a) return true;
+		if (first_reachable_from_second(a, p)) return true;
+	}
+	return false;
+}
+
+bool all_nodes_reachable_from(EnvironmentOrigins &ea, ExplodedNode *n) {
+	using vsize_t = std::vector<clang::ento::ExplodedNode*>::size_type;
+	for (vsize_t i = 0; i < ea.sources.size(); i += 1) {
+		if (!first_reachable_from_second(ea.sources[i], n)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+ExplodedNode* get_dominator(EnvironmentOrigins &ea) {
+	if (ea.sources.size() <= 0) return nullptr;
+	ExplodedNode *candidate;
+	std::vector<ExplodedNode*> candidates{ea.sources[0]};
+	do {
+		candidate = candidates.back();
+		for (ExplodedNode *pred : candidate->preds()) {
+			candidates.push_back(pred);
+		}
+	} while (!all_nodes_reachable_from(ea, candidate));
+	return candidate;
+}
+
+static const char* str_ProgramPoint_Kind(ProgramPoint p) {
+	switch (p.getKind()) {
+		case ProgramPoint::Kind::BlockEdgeKind: return "BlockEdge"; break;
+		case ProgramPoint::Kind::BlockEntranceKind: return "BlockEntrance"; break;
+		case ProgramPoint::Kind::BlockExitKind: return "PreStmt"; break;
+		case ProgramPoint::Kind::PreStmtKind: return "PostStmt"; break;
+		case ProgramPoint::Kind::PreStmtPurgeDeadSymbolsKind: return "PreStmtPurgeDead"; break;
+		case ProgramPoint::Kind::PostStmtPurgeDeadSymbolsKind: return "PostStmtPurgeDead"; break;
+		case ProgramPoint::Kind::PreLoadKind: return "PreLoad"; break;
+		case ProgramPoint::Kind::PostLoadKind: return "PostLoad"; break;
+		case ProgramPoint::Kind::PreStoreKind: return "PreStore"; break;
+		case ProgramPoint::Kind::PostStoreKind: return "PostStore"; break;
+		case ProgramPoint::Kind::PostConditionKind: return "PostCondition"; break;
+		case ProgramPoint::Kind::PostLValueKind: return "PostLValue"; break;
+		case ProgramPoint::Kind::PostAllocatorCallKind: return "PostAllocatorCall"; break;
+		case ProgramPoint::Kind::PostInitializerKind: return "PostInitializer"; break;
+		case ProgramPoint::Kind::CallEnterKind: return "CallEnter"; break;
+		case ProgramPoint::Kind::CallExitBeginKind: return "CallExitBegin"; break;
+		case ProgramPoint::Kind::CallExitEndKind: return "CallExitEnd"; break;
+		case ProgramPoint::Kind::FunctionExitKind: return "FunctionExit"; break;
+		case ProgramPoint::Kind::PreImplicitCallKind: return "PreImplicitCall"; break;
+		case ProgramPoint::Kind::PostImplicitCallKind: return "PostImplicitCall"; break;
+		case ProgramPoint::Kind::LoopExitKind: return "LoopExit"; break;
+		case ProgramPoint::Kind::EpsilonKind: return "Epsilon"; break;
+	}
+}
+
+static unsigned gv_ret(unsigned *gv_id) {
+	unsigned old_gv_id = *gv_id;
+	(*gv_id) += 1;
+	return old_gv_id;
+}
+
+static unsigned gv_declare_node(unsigned jumps_so_far, unsigned *gv_id) {
+	llvm::errs() << "graphviznode" << *gv_id << "[label=" << "\"" << jumps_so_far << " serial steps\"]\n";
+	return gv_ret(gv_id);
+}
+
+static void gv_exploded_node(ExplodedNode *node) {
+	llvm::errs() << "\"node" << node->getID() << " (" << str_ProgramPoint_Kind(node->getLocation()) << ")" << "\"";
+}
+
+static void gv_edge_from_first_to_second(unsigned gv_id1, unsigned gv_id2) {
+	llvm::errs() << "graphviznode" << gv_id1 << " -> " << "graphviznode" << gv_id2 << "\n";
+}
+
+static void gv_edge_from_first_to_second(unsigned gv_id1, ExplodedNode *node) {
+	llvm::errs() << "graphviznode" << gv_id1 << " -> ";
+	gv_exploded_node(node);
+	llvm::errs() << "\n";
+}
+
+static void gv_edge_from_first_to_second(ExplodedNode *node, unsigned gv_id1) {
+	gv_exploded_node(node);
+	llvm::errs() << " -> " << "graphviznode" << gv_id1 << "\n";
+}
+
+static void gv_edge_from_first_to_second(ExplodedNode *node, ExplodedNode *node2) {
+	gv_exploded_node(node);
+	llvm::errs() << " -> ";
+	gv_exploded_node(node2);
+}
+
+static void print_node(ExplodedNode *node, unsigned *graphvizid) {
+	llvm::errs() << "graphviznode" << *graphvizid << "[label=\"" << "node" << node->getID() << " (" << str_ProgramPoint_Kind(node->getLocation()) << ")" << "\"]\n";
+	llvm::errs() << "graphviznode" << *graphvizid;
+	// llvm::errs() << "\"node" << node->getID() << " (" << str_ProgramPoint_Kind(node->getLocation()) << ")\"";
+	*graphvizid += 1;
+}
+
 void ExprEngine::processEndWorklist() {
   // This prints the name of the top-level function if we crash.
   PrettyStackTraceLocationContext CrashInfo(getRootLocationContext());
@@ -993,7 +1094,67 @@ void ExprEngine::processEndWorklist() {
   llvm::errs() << "Environment occurrences\tParent child redundancy count\n";
   llvm::errs() << "prev_environment_equal_to_current_count: " << prev_environment_equal_to_current_count << '\n';
 
+  const char default_node_style[] = "node[shape=rectangle color=black]\n";
+  const char equivalent_environments_node_style[] = "node[shape=rectangle color=orange]\n";
+
   for (EnvironmentOrigins &ea : envs) {
+
+	unsigned graphvizid = 0;
+
+	  if (ea.sources.size() > 1) {
+		  llvm::errs() << "Graphviz code:\n";
+		  llvm::errs() << "strict digraph {\n";
+		  llvm::errs() << default_node_style;
+		  std::vector<ExplodedNode*> nodes_to_expand;
+		  for (ExplodedNode *env_origin_node : ea.sources) {
+		  	nodes_to_expand.push_back(env_origin_node);
+		  }
+		  while (nodes_to_expand.size()) {
+			  auto *current = nodes_to_expand.back();
+			  nodes_to_expand.pop_back();
+			  if (ea.sources.end() != std::find(ea.sources.begin(), ea.sources.end(), current)) {
+				  llvm::errs() << equivalent_environments_node_style;
+				  gv_exploded_node(current);
+				  llvm::errs() << '\n';
+				  llvm::errs() << default_node_style;
+				  for (ExplodedNode *pred : current->preds()) {
+					   gv_edge_from_first_to_second(pred, current);
+					   llvm::errs() << "\n";
+					   nodes_to_expand.push_back(pred);
+				  }
+			  } else {
+				auto *from = current;
+				unsigned jumps_so_far = 0;
+				while (current && current->pred_size() == 1 && current->getFirstPred()->succ_size() == 1) {
+					current = current->getFirstPred();
+					jumps_so_far += 1;
+				}
+				if (current) {
+					auto gv_id_serial_steps_summary_node = gv_declare_node(jumps_so_far, &graphvizid);
+					gv_edge_from_first_to_second(gv_id_serial_steps_summary_node, from);
+					
+					// auto gv_id_serial_steps_summary_node2 = gv_declare_node(jumps_so_far, &graphvizid);
+					gv_edge_from_first_to_second(current, gv_id_serial_steps_summary_node);
+
+#if 0
+					llvm::errs() << "graphviznode" << graphvizid++ << "[label=" << "\"" << jumps_so_far << " serial steps\"]\n";
+					llvm::errs() << "graphviznode" << graphvizid - 1 << " -> "; print_node(from, &graphvizid); llvm::errs() << "\n";
+
+					llvm::errs() << "graphviznode" << graphvizid++ << "[label=" << '"' << jumps_so_far << " serial steps\"]\n";
+					print_node(current, &graphvizid); llvm::errs() << " -> graphviznode" << graphvizid - 2 << "\n";
+#endif
+
+					for (ExplodedNode *pred : current->preds()) {
+						gv_edge_from_first_to_second(pred, current);
+					    llvm::errs() << "\n";
+						nodes_to_expand.push_back(pred);
+					}
+				}
+			  }
+		  }
+		  llvm::errs() << "}\n";
+	  }
+
      unsigned parent_child_redundancy_count = 0;
 	 for (vsize_t i = 0; i < ea.sources.size(); i += 1) {
 		for (vsize_t j = i + 1; j < ea.sources.size(); j += 1) {
@@ -1004,6 +1165,12 @@ void ExprEngine::processEndWorklist() {
     }
 	llvm::errs() << ea.sources.size() << '\t' << parent_child_redundancy_count << "\n";
   }
+
+#if 0
+  llvm::errs() << "Which exploded node equivalence class would you like to visualize from this entry point's exploded graph? (please enter its integer index in the range [0, " << envs.size() - 1 << ;
+  llvm::errs() << "-1: none";
+  scanf();
+#endif
 
   prev_environment_equal_to_current_count = 0;
   envs.clear();
