@@ -82,6 +82,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <fstream>
 
 using namespace clang;
 using namespace ento;
@@ -1047,39 +1048,65 @@ static unsigned gv_ret(unsigned *gv_id) {
 	return old_gv_id;
 }
 
-static unsigned gv_declare_node(unsigned jumps_so_far, unsigned *gv_id) {
-	llvm::errs() << "graphviznode" << *gv_id << "[label=" << "\"" << jumps_so_far << " serial steps\"]\n";
+template <typename T>
+static unsigned gv_declare_node(T &outs, unsigned jumps_so_far, unsigned *gv_id) {
+	outs << "graphviznode" << *gv_id << "[label=" << "\"" << jumps_so_far << " serial steps\"]\n";
 	return gv_ret(gv_id);
 }
 
-static void gv_exploded_node(ExplodedNode *node) {
-	llvm::errs() << "\"node" << node->getID() << " (" << str_ProgramPoint_Kind(node->getLocation()) << ")" << "\"";
+struct collapsed_linear_steps {
+	ExplodedNode *from;
+	ExplodedNode *to;
+	unsigned length;
+	unsigned count;
+};
+
+template <typename T>
+static void gv_print_id_for(T &outs, unsigned jumps_so_far, ExplodedNode *from, ExplodedNode *to) {
+	outs << "graphviznode" << from->getID() << "_" << to->getID() << "_" << jumps_so_far;
 }
 
-static void gv_edge_from_first_to_second(unsigned gv_id1, unsigned gv_id2) {
-	llvm::errs() << "graphviznode" << gv_id1 << " -> " << "graphviznode" << gv_id2 << "\n";
+template <typename T>
+static unsigned gv_declare_node(T &outs, unsigned jumps_so_far, ExplodedNode *from, ExplodedNode *to, unsigned *gv_id) {
+	gv_print_id_for(outs, jumps_so_far, from, to);
+	outs << "[label=" << "\"" << jumps_so_far << " serial steps\"]\n";
+	return gv_ret(gv_id);
 }
 
-static void gv_edge_from_first_to_second(unsigned gv_id1, ExplodedNode *node) {
-	llvm::errs() << "graphviznode" << gv_id1 << " -> ";
-	gv_exploded_node(node);
-	llvm::errs() << "\n";
+template <typename T>
+static void gv_exploded_node(T &outs, ExplodedNode *node) {
+	outs << "\"node" << node->getID() << " (" << str_ProgramPoint_Kind(node->getLocation()) << ")" << "\"";
 }
 
-static void gv_edge_from_first_to_second(ExplodedNode *node, unsigned gv_id1) {
-	gv_exploded_node(node);
-	llvm::errs() << " -> " << "graphviznode" << gv_id1 << "\n";
+template <typename T>
+static void gv_edge_from_first_to_second(T &outs, unsigned gv_id1, unsigned gv_id2) {
+	outs << "graphviznode" << gv_id1 << " -> " << "graphviznode" << gv_id2 << "\n";
 }
 
-static void gv_edge_from_first_to_second(ExplodedNode *node, ExplodedNode *node2) {
-	gv_exploded_node(node);
-	llvm::errs() << " -> ";
-	gv_exploded_node(node2);
+template <typename T>
+static void gv_edge_from_first_to_second(T &outs, unsigned gv_id1, ExplodedNode *node) {
+	outs << "graphviznode" << gv_id1 << " -> ";
+	gv_exploded_node(outs, node);
+	outs << "\n";
 }
 
-static void print_node(ExplodedNode *node, unsigned *graphvizid) {
-	llvm::errs() << "graphviznode" << *graphvizid << "[label=\"" << "node" << node->getID() << " (" << str_ProgramPoint_Kind(node->getLocation()) << ")" << "\"]\n";
-	llvm::errs() << "graphviznode" << *graphvizid;
+template <typename T>
+static void gv_edge_from_first_to_second(T &outs, ExplodedNode *node, unsigned gv_id1) {
+	gv_exploded_node(outs, node);
+	outs << " -> " << "graphviznode" << gv_id1 << "\n";
+}
+
+template <typename T>
+static void gv_edge_from_first_to_second(T &outs, ExplodedNode *node, ExplodedNode *node2) {
+	gv_exploded_node(outs, node);
+	outs << " -> ";
+	gv_exploded_node(outs, node2);
+}
+
+template <typename T>
+static void print_node(T &outs, ExplodedNode *node, unsigned *graphvizid) {
+	outs << "graphviznode" << *graphvizid << "[label=\"" << "node" << node->getID() << " (" << str_ProgramPoint_Kind(node->getLocation()) << ")" << "\"]\n";
+	outs << "graphviznode" << *graphvizid;
 	// llvm::errs() << "\"node" << node->getID() << " (" << str_ProgramPoint_Kind(node->getLocation()) << ")\"";
 	*graphvizid += 1;
 }
@@ -1097,14 +1124,22 @@ void ExprEngine::processEndWorklist() {
   const char default_node_style[] = "node[shape=rectangle color=black]\n";
   const char equivalent_environments_node_style[] = "node[shape=rectangle color=orange]\n";
 
+  static bool printed_already = false;
+  unsigned index = -1;
   for (EnvironmentOrigins &ea : envs) {
-
+	index += 1;
 	unsigned graphvizid = 0;
 
-	  if (ea.sources.size() > 1) {
-		  llvm::errs() << "Graphviz code:\n";
-		  llvm::errs() << "strict digraph {\n";
-		  llvm::errs() << default_node_style;
+	if (!printed_already && ea.sources.size() == 63) {
+		printed_already = true;
+#if 0
+		std::ofstream outs("out-graph.dot");
+#else
+		auto &outs = llvm::errs();
+#endif
+		  outs << "Graph for environment " << index << " with redundancy " << ea.sources.size();
+		  outs << "strict digraph {\n";
+		  outs << default_node_style;
 		  std::vector<ExplodedNode*> nodes_to_expand;
 		  for (ExplodedNode *env_origin_node : ea.sources) {
 		  	nodes_to_expand.push_back(env_origin_node);
@@ -1113,13 +1148,13 @@ void ExprEngine::processEndWorklist() {
 			  auto *current = nodes_to_expand.back();
 			  nodes_to_expand.pop_back();
 			  if (ea.sources.end() != std::find(ea.sources.begin(), ea.sources.end(), current)) {
-				  llvm::errs() << equivalent_environments_node_style;
-				  gv_exploded_node(current);
-				  llvm::errs() << '\n';
-				  llvm::errs() << default_node_style;
+				  outs << equivalent_environments_node_style;
+				  gv_exploded_node(outs, current);
+				  outs << '\n';
+				  outs << default_node_style;
 				  for (ExplodedNode *pred : current->preds()) {
-					   gv_edge_from_first_to_second(pred, current);
-					   llvm::errs() << "\n";
+					   gv_edge_from_first_to_second(outs, pred, current);
+					   outs << "\n";
 					   nodes_to_expand.push_back(pred);
 				  }
 			  } else {
@@ -1130,31 +1165,33 @@ void ExprEngine::processEndWorklist() {
 					jumps_so_far += 1;
 				}
 				if (current) {
-					auto gv_id_serial_steps_summary_node = gv_declare_node(jumps_so_far, &graphvizid);
-					gv_edge_from_first_to_second(gv_id_serial_steps_summary_node, from);
-					
-					// auto gv_id_serial_steps_summary_node2 = gv_declare_node(jumps_so_far, &graphvizid);
-					gv_edge_from_first_to_second(current, gv_id_serial_steps_summary_node);
+					gv_print_id_for(outs, jumps_so_far, from, current);
+					outs << " -> ";
+					gv_exploded_node(outs, from);
+					outs << "\n";
 
-#if 0
-					llvm::errs() << "graphviznode" << graphvizid++ << "[label=" << "\"" << jumps_so_far << " serial steps\"]\n";
-					llvm::errs() << "graphviznode" << graphvizid - 1 << " -> "; print_node(from, &graphvizid); llvm::errs() << "\n";
+					gv_exploded_node(outs, current);
+					outs << " -> ";
+					gv_print_id_for(outs, jumps_so_far, from, current);
+					outs << "\n";
+					gv_declare_node(outs, jumps_so_far, from, current, &graphvizid);
 
-					llvm::errs() << "graphviznode" << graphvizid++ << "[label=" << '"' << jumps_so_far << " serial steps\"]\n";
-					print_node(current, &graphvizid); llvm::errs() << " -> graphviznode" << graphvizid - 2 << "\n";
-#endif
+					// gv_edge_from_first_to_second(outs, gv_id_serial_steps_summary_node, from);
+					// gv_edge_from_first_to_second(outs, current, gv_id_serial_steps_summary_node);
 
 					for (ExplodedNode *pred : current->preds()) {
-						gv_edge_from_first_to_second(pred, current);
-					    llvm::errs() << "\n";
+						gv_edge_from_first_to_second(outs, pred, current);
+					    outs << "\n";
 						nodes_to_expand.push_back(pred);
 					}
 				}
 			  }
 		  }
-		  llvm::errs() << "}\n";
+		  outs << "}\n";
 	  }
+  }
 
+  for (EnvironmentOrigins &ea : envs) {
      unsigned parent_child_redundancy_count = 0;
 	 for (vsize_t i = 0; i < ea.sources.size(); i += 1) {
 		for (vsize_t j = i + 1; j < ea.sources.size(); j += 1) {
