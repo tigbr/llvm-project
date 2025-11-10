@@ -142,7 +142,7 @@ New checks
   Gives warnings for implicit cast, C-style cast and ``reinterpret_cast``
   expressions between pointers, where the source type is a pointer to
   a ``union``, and that ``union`` has no field with the same type as the
-  target's pointee type.
+  cast target's pointee type.
 
 - New :doc:`portability-avoid-pragma-once
   <clang-tidy/checks/portability/avoid-pragma-once>` check.

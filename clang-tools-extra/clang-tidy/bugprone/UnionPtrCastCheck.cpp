@@ -16,11 +16,12 @@ namespace clang::tidy::bugprone {
 static constexpr llvm::StringLiteral UnionBindName = "union";
 static constexpr llvm::StringLiteral CastBindName = "cast";
 
-// If there is a user specified value for the option, then get that value,
-// otherwise use a default. The # converts its argument to a string literal.
-// So the option's expected name in the configuration is the same as the name
-// of the corressponding class member holding the option's value.
-#define InitOption(option_name, default_value)                                 \
+// This macro was created to initialize the class fields with a default value or
+// with the value taken from the clang-tidy configuration file.
+// The same name is used for the check options in the clang-tidy configuration
+// file and in the class fields. This is accomplished with the # preprocessor
+// operator, which converts its argument to a string literal.
+#define InitOption(option_name, default_value)                                \
   option_name(Options.get(#option_name, default_value))
 
 UnionPtrCastCheck::UnionPtrCastCheck(StringRef Name, ClangTidyContext *Context)
@@ -95,13 +96,12 @@ static bool fieldDerivesFrom(const FieldDecl *Field,
   return false;
 }
 
-static bool langOptIsC(const LangOptions &Options) {
-	if (Options.C99) return true;
-}
-
 bool UnionPtrCastCheck::hasFieldOfType(const PointerType *Target, const RecordDecl *Record) const {
   if (!Record)
     return false;
+  if (const auto *CXXRecord = llvm::dyn_cast<CXXRecordDecl>(Record))
+    if (!CXXRecord->isStandardLayout())
+      return false;
   for (const FieldDecl *Field : Record->fields()) {
     QualType FieldType = CompareCanonicalTypes
                              ? Field->getType().getCanonicalType()
@@ -110,7 +110,7 @@ bool UnionPtrCastCheck::hasFieldOfType(const PointerType *Target, const RecordDe
       return true;
     if (AllowCastToBaseClass && fieldDerivesFrom(Field, Target->getPointeeCXXRecordDecl()))
       return true;
-    if (langOptIsC(getLangOpts()) && AllowCastToSubField && hasFieldOfType(Target, FieldType.getTypePtr()->getAsRecordDecl()))
+    if (AllowCastToSubField && hasFieldOfType(Target, FieldType.getTypePtr()->getAsRecordDecl()))
       return true;
     if (!Record->isUnion())
       break;

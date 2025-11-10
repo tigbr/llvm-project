@@ -6,7 +6,7 @@ bugprone-union-ptr-cast
 Gives warnings for implicit cast, C-style cast and ``reinterpret_cast``
 expressions between pointers, where the source type is a pointer to
 a ``union``, and that ``union`` has no field with the same type as the
-target's pointee type.
+cast target's pointee type.
 
 .. code-block:: c++
 
@@ -60,9 +60,9 @@ Options
 
 This option is enabled by default.
 
-When enabled, the check becomes aware of C++ inheritance. A cast is also
-accepted if the ``union`` has a field whose type is a subtype of the cast
-target's pointee type.
+When enabled, the check becomes aware of C++ inheritance. This means that casts
+are also accepted when the ``union`` contains a field whose type is a subtype
+of the cast target's pointee type.
 
 .. code-block:: c++
 
@@ -81,11 +81,17 @@ target's pointee type.
     B = reinterpret_cast<Base*>(U);
   }
 
-.. option:: AllowCastToSubField (C only)
+.. option:: AllowCastToSubField
 
 This option is enabled by default.
 
-Further 
+The C standards state that the address of a ``union`` object is the same
+as the addresses of that ``union``'s fields. Furthermore, there is an analogous
+rule for structures as well, meaning that a pointer to a structure also points to its first field.
+
+These rules are present in C++ as well with the extra requirement, that the ``union``, ``struct`` or ``class`` must have a so called standard-layout.
+
+See in the standards:
 
 .. option:: AlwaysAllowCastToCharPtr, AlwaysAllowCastToVoidPtr
 
@@ -94,14 +100,6 @@ Both are enabled by default.
 These options toggle whether casts to ``char*`` or ``void*`` should be allowed
 even when the ``union`` pointed by the source expression does not contain a
 field with one of those types.
-
-.. option:: IgnoreIfUnionIsFromStdNamespace, IgnoreIfUnionIsFromSystemHeader
-
-Both are enabled by default.
-
-These options toggle whether a cast should be ignored when the ``union``
-pointed by the source expression is declared in the ``std::`` namespace or in
-a system header file.
 
 .. option:: CompareCanonicalTypes
 
@@ -147,3 +145,11 @@ the interpretation of types.
 +-----------------------+----------------------+-------------------------------+
 | `FooStructPtr`        | `FooStruct *`        | `struct foo *`                |
 +-----------------------+----------------------+-------------------------------+
+
+.. option:: IgnoreIfUnionIsFromStdNamespace, IgnoreIfUnionIsFromSystemHeader
+
+Both are enabled by default.
+
+These options toggle whether a cast should be ignored when the ``union``
+pointed by the source expression is declared in the ``std::`` namespace or in
+a system header file.
