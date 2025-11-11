@@ -298,46 +298,18 @@ SVal ProgramState::getSVal(Loc location, QualType T) const {
   return V;
 }
 
-struct EnvironmentOrigins {
-	const Environment *env;
-	std::vector<ExplodedNode *> sources;
-};
-
-extern ExplodedGraph *exploded_graph;
-extern ExplodedNode *pred_exploded_node;
-extern std::vector<EnvironmentOrigins> envs;
-extern unsigned prev_environment_equal_to_current_count;
-
 ProgramStateRef ProgramState::BindExpr(const Stmt *S,
                                            const LocationContext *LCtx,
                                            SVal V, bool Invalidate) const {
   Environment NewEnv =
-    getStateManager().EnvMgr.bindExpr(Env, EnvironmentEntry(S, LCtx), V, Invalidate);
-
-  using vsize_t = std::vector<EnvironmentOrigins*>::size_type;
-
-  bool env_is_first_encountered = true;
-  for (vsize_t i = 0; i < envs.size(); i += 1) {
-    if (*envs[i].env == NewEnv) {
-		env_is_first_encountered = false;
-		envs[i].sources.push_back(pred_exploded_node);
-    }
-  }
-
-  if (NewEnv == Env) {
-    prev_environment_equal_to_current_count += 1;
+    getStateManager().EnvMgr.bindExpr(Env, EnvironmentEntry(S, LCtx), V,
+                                      Invalidate);
+  if (NewEnv == Env)
     return this;
-  }
 
   ProgramState NewSt = *this;
   NewSt.Env = NewEnv;
-
-  auto Result = getStateManager().getPersistentState(NewSt);
-  if (env_is_first_encountered) {
-    envs.push_back(EnvironmentOrigins{&Result->getEnvironment(), {pred_exploded_node}});
-  }
-
-  return Result;
+  return getStateManager().getPersistentState(NewSt);
 }
 
 [[nodiscard]] std::pair<ProgramStateRef, ProgramStateRef>

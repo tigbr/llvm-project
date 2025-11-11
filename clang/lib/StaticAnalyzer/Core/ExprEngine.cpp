@@ -220,11 +220,6 @@ REGISTER_TRAIT_WITH_PROGRAMSTATE(PendingArrayDestruction,
 
 static const char* TagProviderName = "ExprEngine";
 
-ExplodedGraph *exploded_graph;
-ExplodedNode *pred_exploded_node;
-clang::Stmt::StmtClass current_stmt_class;
-unsigned prev_environment_equal_to_current_count;
-
 ExprEngine::ExprEngine(cross_tu::CrossTranslationUnitContext &CTU,
                        AnalysisManager &mgr, SetOfConstDecls *VisitedCalleesIn,
                        FunctionSummariesTy *FS, InliningModes HowToInlineIn)
@@ -242,7 +237,6 @@ ExprEngine::ExprEngine(cross_tu::CrossTranslationUnitContext &CTU,
     // Enable eager node reclamation when constructing the ExplodedGraph.
     G.enableNodeReclamation(TrimInterval);
   }
-  exploded_graph = &G;
 }
 
 //===----------------------------------------------------------------------===//
@@ -965,12 +959,35 @@ void ExprEngine::printJson(raw_ostream &Out, ProgramStateRef State,
                                                    IsDot);
 }
 
+// Update in ProgramState.cpp as well if changed
 struct EnvironmentOrigins {
 	const Environment *env;
 	std::vector<ExplodedNode *> sources;
+	unsigned other_count = 0;
+	unsigned BlockEdge_count = 0;
+	unsigned BlockEntrance_count = 0;
+	unsigned BlockExit_count = 0;
+	unsigned PreStmt_count = 0;
+	unsigned PostStmt_count = 0;
+	unsigned PreStmtPurgeDeadSymbols_count = 0;
+	unsigned PostStmtPurgeDeadSymbols_count = 0;
+	unsigned PreLoad_count = 0;
+	unsigned PostLoad_count = 0;
+	unsigned PreStore_count = 0;
+	unsigned PostStore_count = 0;
+	unsigned PostCondition_count = 0;
+	unsigned PostLValue_count = 0;
+	unsigned PostAllocatorCall_count = 0;
+	unsigned PostInitializer_count = 0;
+	unsigned CallEnter_count = 0;
+	unsigned CallExitBegin_count = 0;
+	unsigned CallExitEnd_count = 0;
+	unsigned FunctionExit_count = 0;
+	unsigned PreImplicitCall_count = 0;
+	unsigned PostImplicitCall_count = 0;
+	unsigned LoopExit_count = 0;
+	unsigned Epsilon_count = 0;
 };
-
-std::vector<EnvironmentOrigins> envs;
 
 static bool is_pred_succ_relationship(ExplodedNode *a, ExplodedNode *b) {
 	if (a == nullptr || b == nullptr) return false;
@@ -1015,31 +1032,93 @@ ExplodedNode* get_dominator(EnvironmentOrigins &ea) {
 	return candidate;
 }
 
+void update_programpoint_count(EnvironmentOrigins *e, ProgramPoint p) {
+	switch (p.getKind()) {
+		default: e->other_count += 1; return;
+		#define update_programpoint_count_case(programpointkind)\
+		case ProgramPoint::Kind::programpointkind ## Kind: e->programpointkind ## _count += 1; return;
+		update_programpoint_count_case(BlockEdge);
+		update_programpoint_count_case(BlockEntrance);
+		update_programpoint_count_case(BlockExit);
+		update_programpoint_count_case(PreStmt);
+		update_programpoint_count_case(PostStmt);
+		update_programpoint_count_case(PreStmtPurgeDeadSymbols);
+		update_programpoint_count_case(PostStmtPurgeDeadSymbols);
+		update_programpoint_count_case(PreLoad);
+		update_programpoint_count_case(PostLoad);
+		update_programpoint_count_case(PreStore);
+		update_programpoint_count_case(PostStore);
+		update_programpoint_count_case(PostCondition);
+		update_programpoint_count_case(PostLValue);
+		update_programpoint_count_case(PostAllocatorCall);
+		update_programpoint_count_case(PostInitializer);
+		update_programpoint_count_case(CallEnter);
+		update_programpoint_count_case(CallExitBegin);
+		update_programpoint_count_case(CallExitEnd);
+		update_programpoint_count_case(FunctionExit);
+		update_programpoint_count_case(PreImplicitCall);
+		update_programpoint_count_case(PostImplicitCall);
+		update_programpoint_count_case(LoopExit);
+		update_programpoint_count_case(Epsilon);
+	}
+	llvm::errs() << "Unknown programpoint with value: " << p.getKind() << "\n";
+	#define myasdf(programpointkind)\
+	llvm::errs() << #programpointkind << ": " << ProgramPoint::Kind::programpointkind ## Kind << '\n';
+	myasdf(BlockEdge);
+	myasdf(BlockEntrance);
+	myasdf(BlockExit);
+	myasdf(PreStmt);
+	myasdf(PostStmt);
+	myasdf(PreStmtPurgeDeadSymbols);
+	myasdf(PostStmtPurgeDeadSymbols);
+	myasdf(PreLoad);
+	myasdf(PostLoad);
+	myasdf(PreStore);
+	myasdf(PostStore);
+	myasdf(PostCondition);
+	myasdf(PostLValue);
+	myasdf(PostAllocatorCall);
+	myasdf(PostInitializer);
+	myasdf(CallEnter);
+	myasdf(CallExitBegin);
+	myasdf(CallExitEnd);
+	myasdf(FunctionExit);
+	myasdf(PreImplicitCall);
+	myasdf(PostImplicitCall);
+	myasdf(LoopExit);
+	myasdf(Epsilon);
+	// exit(0);
+}
+
 static const char* str_ProgramPoint_Kind(ProgramPoint p) {
 	switch (p.getKind()) {
-		case ProgramPoint::Kind::BlockEdgeKind: return "BlockEdge"; break;
-		case ProgramPoint::Kind::BlockEntranceKind: return "BlockEntrance"; break;
-		case ProgramPoint::Kind::BlockExitKind: return "PreStmt"; break;
-		case ProgramPoint::Kind::PreStmtKind: return "PostStmt"; break;
-		case ProgramPoint::Kind::PreStmtPurgeDeadSymbolsKind: return "PreStmtPurgeDead"; break;
-		case ProgramPoint::Kind::PostStmtPurgeDeadSymbolsKind: return "PostStmtPurgeDead"; break;
-		case ProgramPoint::Kind::PreLoadKind: return "PreLoad"; break;
-		case ProgramPoint::Kind::PostLoadKind: return "PostLoad"; break;
-		case ProgramPoint::Kind::PreStoreKind: return "PreStore"; break;
-		case ProgramPoint::Kind::PostStoreKind: return "PostStore"; break;
-		case ProgramPoint::Kind::PostConditionKind: return "PostCondition"; break;
-		case ProgramPoint::Kind::PostLValueKind: return "PostLValue"; break;
-		case ProgramPoint::Kind::PostAllocatorCallKind: return "PostAllocatorCall"; break;
-		case ProgramPoint::Kind::PostInitializerKind: return "PostInitializer"; break;
-		case ProgramPoint::Kind::CallEnterKind: return "CallEnter"; break;
-		case ProgramPoint::Kind::CallExitBeginKind: return "CallExitBegin"; break;
-		case ProgramPoint::Kind::CallExitEndKind: return "CallExitEnd"; break;
-		case ProgramPoint::Kind::FunctionExitKind: return "FunctionExit"; break;
-		case ProgramPoint::Kind::PreImplicitCallKind: return "PreImplicitCall"; break;
-		case ProgramPoint::Kind::PostImplicitCallKind: return "PostImplicitCall"; break;
-		case ProgramPoint::Kind::LoopExitKind: return "LoopExit"; break;
-		case ProgramPoint::Kind::EpsilonKind: return "Epsilon"; break;
+		#define str_ProgramPoint_Kind_case(programpointkind)\
+		case ProgramPoint::Kind::programpointkind ## Kind: return #programpointkind;
+		str_ProgramPoint_Kind_case(BlockEdge);
+		str_ProgramPoint_Kind_case(BlockEntrance);
+		str_ProgramPoint_Kind_case(BlockExit);
+		str_ProgramPoint_Kind_case(PreStmt);
+		str_ProgramPoint_Kind_case(PostStmt);
+		str_ProgramPoint_Kind_case(PreStmtPurgeDeadSymbols);
+		str_ProgramPoint_Kind_case(PostStmtPurgeDeadSymbols);
+		str_ProgramPoint_Kind_case(PreLoad);
+		str_ProgramPoint_Kind_case(PostLoad);
+		str_ProgramPoint_Kind_case(PreStore);
+		str_ProgramPoint_Kind_case(PostStore);
+		str_ProgramPoint_Kind_case(PostCondition);
+		str_ProgramPoint_Kind_case(PostLValue);
+		str_ProgramPoint_Kind_case(PostAllocatorCall);
+		str_ProgramPoint_Kind_case(PostInitializer);
+		str_ProgramPoint_Kind_case(CallEnter);
+		str_ProgramPoint_Kind_case(CallExitBegin);
+		str_ProgramPoint_Kind_case(CallExitEnd);
+		str_ProgramPoint_Kind_case(FunctionExit);
+		str_ProgramPoint_Kind_case(PreImplicitCall);
+		str_ProgramPoint_Kind_case(PostImplicitCall);
+		str_ProgramPoint_Kind_case(LoopExit);
+		str_ProgramPoint_Kind_case(Epsilon);
 	}
+	return "";
 }
 
 static unsigned gv_ret(unsigned *gv_id) {
@@ -1116,10 +1195,29 @@ void ExprEngine::processEndWorklist() {
   PrettyStackTraceLocationContext CrashInfo(getRootLocationContext());
   getCheckerManager().runCheckersForEndAnalysis(G, BR, *this);
 
-	using vsize_t = std::vector<clang::ento::ExplodedNode*>::size_type;
+	using vsize_t = std::vector<EnvironmentOrigins>::size_type;
 
-  llvm::errs() << "Environment occurrences\tParent child redundancy count\n";
-  llvm::errs() << "prev_environment_equal_to_current_count: " << prev_environment_equal_to_current_count << '\n';
+	std::vector<EnvironmentOrigins> envs;
+  	for (ExplodedNode &exploded_node : G.nodes()) {
+		bool env_is_first_encountered = true;
+		for (vsize_t i = 0; i < envs.size(); i += 1) {
+			if (*envs[i].env == exploded_node.getState()->getEnvironment()) {
+				env_is_first_encountered = false;
+				envs[i].sources.push_back(&exploded_node);
+				update_programpoint_count(&envs[i], exploded_node.getLocation());
+			}
+		}
+
+		if (env_is_first_encountered) {
+			envs.push_back(EnvironmentOrigins{&exploded_node.getState()->getEnvironment(), {&exploded_node}});
+			update_programpoint_count(&envs[envs.size()-1], exploded_node.getLocation());
+		}
+	}
+
+	std::sort(envs.begin(), envs.end(), [](EnvironmentOrigins &a, EnvironmentOrigins &b){ return a.sources.size() > b.sources.size(); });
+
+  llvm::errs() << "Environment occurrences\tParent child redundancy count\t";
+  llvm::errs() << "othercount\t" << "BlockEdge_count \t" << "BlockEntrance_count \t" << "BlockExit_count \t" << "PreStmt_count \t" << "PreStmtPurgeDeadSymbols_count \t" << "PostStmtPurgeDeadSymbols_count \t" << "PreLoad_count \t" << "PostLoad_count \t" << "PreStore_count \t" << "PostStore_count \t" << "PostCondition_count \t" << "PostLValue_count \t" << "PostAllocatorCall_count \t" << "PostInitializer_count \t" << "CallEnter_count \t" << "CallExitBegin_count \t" << "CallExitEnd_count \t" << "FunctionExit_count \t" << "PreImplicitCall_count \t" << "PostImplicitCall_count \t" << "LoopExit_count \t" << "Epsilon_count\n";
 
   const char default_node_style[] = "node[shape=rectangle color=black]\n";
   const char equivalent_environments_node_style[] = "node[shape=rectangle color=orange]\n";
@@ -1200,17 +1298,9 @@ void ExprEngine::processEndWorklist() {
 			}
 		}
     }
-	llvm::errs() << ea.sources.size() << '\t' << parent_child_redundancy_count << "\n";
+	llvm::errs() << ea.sources.size() << '\t' << parent_child_redundancy_count << '\t';
+	llvm::errs() << ea.other_count << '\t' << ea.BlockEdge_count << '\t' << ea.BlockEntrance_count << '\t' << ea.BlockExit_count << '\t' << ea.PreStmt_count << '\t' << ea.PreStmtPurgeDeadSymbols_count << '\t' << ea.PostStmtPurgeDeadSymbols_count << '\t' << ea.PreLoad_count << '\t' << ea.PostLoad_count << '\t' << ea.PreStore_count << '\t' << ea.PostStore_count << '\t' << ea.PostCondition_count << '\t' << ea.PostLValue_count << '\t' << ea.PostAllocatorCall_count << '\t' << ea.PostInitializer_count << '\t' << ea.CallEnter_count << '\t' << ea.CallExitBegin_count << '\t' << ea.CallExitEnd_count << '\t' << ea.FunctionExit_count << '\t' << ea.PreImplicitCall_count << '\t' << ea.PostImplicitCall_count << '\t' << ea.LoopExit_count << '\t' << ea.Epsilon_count << '\n';
   }
-
-#if 0
-  llvm::errs() << "Which exploded node equivalence class would you like to visualize from this entry point's exploded graph? (please enter its integer index in the range [0, " << envs.size() - 1 << ;
-  llvm::errs() << "-1: none";
-  scanf();
-#endif
-
-  prev_environment_equal_to_current_count = 0;
-  envs.clear();
 }
 
 void ExprEngine::processCFGElement(const CFGElement E, ExplodedNode *Pred,
@@ -1959,8 +2049,6 @@ ProgramStateRef ExprEngine::escapeValues(ProgramStateRef State,
 
 void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
                        ExplodedNodeSet &DstTop) {
-  pred_exploded_node = Pred;
-  current_stmt_class = S->getStmtClass();
   PrettyStackTraceLoc CrashInfo(getContext().getSourceManager(),
                                 S->getBeginLoc(), "Error evaluating statement");
   ExplodedNodeSet Dst;
