@@ -51,6 +51,9 @@ bool ExplodedGraph::isInterestingLValueExpr(const Expr *Ex) {
   return isa<DeclRefExpr, MemberExpr, ObjCIvarRefExpr, ArraySubscriptExpr>(Ex);
 }
 
+extern unsigned node_with_unique_environment_reclaimed_count;
+extern unsigned total_reclamations_count;
+
 bool ExplodedGraph::shouldCollect(const ExplodedNode *node) {
   // First, we only consider nodes for reclamation of the following
   // conditions apply:
@@ -144,6 +147,21 @@ bool ExplodedGraph::shouldCollect(const ExplodedNode *node) {
   // Condition 10, continuation.
   if (SuccLoc.getAs<CallEnter>() || SuccLoc.getAs<PreImplicitCall>())
     return false;
+
+#if 1
+  bool environment_contained_previously = false;
+  for (const ExplodedNode &graph_node : nodes()) {
+    if (node != &graph_node && node->getState()->getEnvironment() == graph_node.getState()->getEnvironment()) {
+      environment_contained_previously = true;
+      break;
+    }
+  }
+
+  if (!environment_contained_previously) {
+    node_with_unique_environment_reclaimed_count += 1;
+  }
+  total_reclamations_count += 1;
+#endif
 
   return true;
 }

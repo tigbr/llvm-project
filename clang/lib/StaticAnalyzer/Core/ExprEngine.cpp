@@ -959,10 +959,7 @@ void ExprEngine::printJson(raw_ostream &Out, ProgramStateRef State,
                                                    IsDot);
 }
 
-// Update in ProgramState.cpp as well if changed
-struct EnvironmentOrigins {
-	const Environment *env;
-	std::vector<ExplodedNode *> sources;
+struct ProgramPointCounter {
 	unsigned other_count = 0;
 	unsigned BlockEdge_count = 0;
 	unsigned BlockEntrance_count = 0;
@@ -989,6 +986,25 @@ struct EnvironmentOrigins {
 	unsigned Epsilon_count = 0;
 };
 
+// Update in ProgramState.cpp as well if changed
+struct EnvironmentEquivalenceClass {
+	const Environment *env;
+	std::vector<ExplodedNode *> sources;
+	ProgramPointCounter program_point_counts;
+};
+
+static ExplodedNode* get_successor_if_parent_child_relationship(ExplodedNode *a, ExplodedNode *b) {
+	if (a == nullptr || b == nullptr) return nullptr;
+    if (a == b) return nullptr;
+	for (ExplodedNode *pred_a : a->preds()) {
+		if (pred_a == b) return a;
+	}
+	for (ExplodedNode *pred_b : b->preds()) {
+		if (pred_b == a) return b;
+	}
+	return nullptr;
+}
+
 static bool is_pred_succ_relationship(ExplodedNode *a, ExplodedNode *b) {
 	if (a == nullptr || b == nullptr) return false;
     if (a == b) return false;
@@ -1009,7 +1025,7 @@ bool first_reachable_from_second(ExplodedNode *a, ExplodedNode *other) {
 	return false;
 }
 
-bool all_nodes_reachable_from(EnvironmentOrigins &ea, ExplodedNode *n) {
+bool all_nodes_reachable_from(EnvironmentEquivalenceClass &ea, ExplodedNode *n) {
 	using vsize_t = std::vector<clang::ento::ExplodedNode*>::size_type;
 	for (vsize_t i = 0; i < ea.sources.size(); i += 1) {
 		if (!first_reachable_from_second(ea.sources[i], n)) {
@@ -1019,7 +1035,7 @@ bool all_nodes_reachable_from(EnvironmentOrigins &ea, ExplodedNode *n) {
 	return true;
 }
 
-ExplodedNode* get_dominator(EnvironmentOrigins &ea) {
+ExplodedNode* get_dominator(EnvironmentEquivalenceClass &ea) {
 	if (ea.sources.size() <= 0) return nullptr;
 	ExplodedNode *candidate;
 	std::vector<ExplodedNode*> candidates{ea.sources[0]};
@@ -1032,11 +1048,40 @@ ExplodedNode* get_dominator(EnvironmentOrigins &ea) {
 	return candidate;
 }
 
-void update_programpoint_count(EnvironmentOrigins *e, ProgramPoint p) {
+unsigned long sum_programpoint_count(ProgramPointCounter *c) {
+	unsigned long result = 0;
+	result += c->other_count;
+	result += c->BlockEdge_count;
+	result += c->BlockEntrance_count;
+	result += c->BlockExit_count;
+	result += c->PreStmt_count;
+	result += c->PostStmt_count;
+	result += c->PreStmtPurgeDeadSymbols_count;
+	result += c->PostStmtPurgeDeadSymbols_count;
+	result += c->PreLoad_count;
+	result += c->PostLoad_count;
+	result += c->PreStore_count;
+	result += c->PostStore_count;
+	result += c->PostCondition_count;
+	result += c->PostLValue_count;
+	result += c->PostAllocatorCall_count;
+	result += c->PostInitializer_count;
+	result += c->CallEnter_count;
+	result += c->CallExitBegin_count;
+	result += c->CallExitEnd_count;
+	result += c->FunctionExit_count;
+	result += c->PreImplicitCall_count;
+	result += c->PostImplicitCall_count;
+	result += c->LoopExit_count;
+	result += c->Epsilon_count;
+	return result;
+}
+
+void update_programpoint_count(ProgramPointCounter *c, ProgramPoint p) {
 	switch (p.getKind()) {
-		default: e->other_count += 1; return;
+		default: c->other_count += 1; return;
 		#define update_programpoint_count_case(programpointkind)\
-		case ProgramPoint::Kind::programpointkind ## Kind: e->programpointkind ## _count += 1; return;
+		case ProgramPoint::Kind::programpointkind ## Kind: c->programpointkind ## _count += 1; return;
 		update_programpoint_count_case(BlockEdge);
 		update_programpoint_count_case(BlockEntrance);
 		update_programpoint_count_case(BlockExit);
@@ -1061,6 +1106,7 @@ void update_programpoint_count(EnvironmentOrigins *e, ProgramPoint p) {
 		update_programpoint_count_case(LoopExit);
 		update_programpoint_count_case(Epsilon);
 	}
+#if 0
 	llvm::errs() << "Unknown programpoint with value: " << p.getKind() << "\n";
 	#define myasdf(programpointkind)\
 	llvm::errs() << #programpointkind << ": " << ProgramPoint::Kind::programpointkind ## Kind << '\n';
@@ -1088,6 +1134,7 @@ void update_programpoint_count(EnvironmentOrigins *e, ProgramPoint p) {
 	myasdf(LoopExit);
 	myasdf(Epsilon);
 	// exit(0);
+#endif
 }
 
 static const char* str_ProgramPoint_Kind(ProgramPoint p) {
@@ -1190,41 +1237,88 @@ static void print_node(T &outs, ExplodedNode *node, unsigned *graphvizid) {
 	*graphvizid += 1;
 }
 
+template <typename T>
+static void print_program_point_count_header(T &outs) {
+	outs << "othercount\t" << "BlockEdge_count \t" << "BlockEntrance_count \t" << "BlockExit_count \t" << "PreStmt_count \t" << "PostStmt_count\t" << "PreStmtPurgeDeadSymbols_count \t" << "PostStmtPurgeDeadSymbols_count \t" << "PreLoad_count \t" << "PostLoad_count \t" << "PreStore_count \t" << "PostStore_count \t" << "PostCondition_count \t" << "PostLValue_count \t" << "PostAllocatorCall_count \t" << "PostInitializer_count \t" << "CallEnter_count \t" << "CallExitBegin_count \t" << "CallExitEnd_count \t" << "FunctionExit_count \t" << "PreImplicitCall_count \t" << "PostImplicitCall_count \t" << "LoopExit_count \t" << "Epsilon_count\n";
+}
+
+template <typename T>
+static void print_program_point_count(T &outs, const ProgramPointCounter *p) {
+	outs << p->other_count << '\t' << p->BlockEdge_count << '\t' << p->BlockEntrance_count << '\t' << p->BlockExit_count << '\t' << p->PreStmt_count << '\t' << p->PostStmt_count << '\t' << p->PreStmtPurgeDeadSymbols_count << '\t' << p->PostStmtPurgeDeadSymbols_count << '\t' << p->PreLoad_count << '\t' << p->PostLoad_count << '\t' << p->PreStore_count << '\t' << p->PostStore_count << '\t' << p->PostCondition_count << '\t' << p->PostLValue_count << '\t' << p->PostAllocatorCall_count << '\t' << p->PostInitializer_count << '\t' << p->CallEnter_count << '\t' << p->CallExitBegin_count << '\t' << p->CallExitEnd_count << '\t' << p->FunctionExit_count << '\t' << p->PreImplicitCall_count << '\t' << p->PostImplicitCall_count << '\t' << p->LoopExit_count << '\t' << p->Epsilon_count << '\n';
+}
+
+unsigned node_with_unique_environment_reclaimed_count = 0;
+unsigned total_reclamations_count = 0;
+
 void ExprEngine::processEndWorklist() {
   // This prints the name of the top-level function if we crash.
   PrettyStackTraceLocationContext CrashInfo(getRootLocationContext());
   getCheckerManager().runCheckersForEndAnalysis(G, BR, *this);
+  using vsize_t = std::vector<EnvironmentEquivalenceClass>::size_type;
 
-	using vsize_t = std::vector<EnvironmentOrigins>::size_type;
+  assert(total_reclamations_count >= node_with_unique_environment_reclaimed_count);
 
-	std::vector<EnvironmentOrigins> envs;
+  llvm::errs() << "node_with_unique_environment_reclaimed_count: " << node_with_unique_environment_reclaimed_count << '\n';
+  node_with_unique_environment_reclaimed_count = 0;
+
+  llvm::errs() << "total_reclamations_count: " << total_reclamations_count << '\n';
+  total_reclamations_count = 0;
+
+	std::vector<EnvironmentEquivalenceClass> envs;
   	for (ExplodedNode &exploded_node : G.nodes()) {
 		bool env_is_first_encountered = true;
 		for (vsize_t i = 0; i < envs.size(); i += 1) {
 			if (*envs[i].env == exploded_node.getState()->getEnvironment()) {
 				env_is_first_encountered = false;
 				envs[i].sources.push_back(&exploded_node);
-				update_programpoint_count(&envs[i], exploded_node.getLocation());
+				update_programpoint_count(&envs[i].program_point_counts, exploded_node.getLocation());
+				break;
 			}
 		}
 
 		if (env_is_first_encountered) {
-			envs.push_back(EnvironmentOrigins{&exploded_node.getState()->getEnvironment(), {&exploded_node}});
-			update_programpoint_count(&envs[envs.size()-1], exploded_node.getLocation());
+			envs.push_back(EnvironmentEquivalenceClass{&exploded_node.getState()->getEnvironment(), {&exploded_node}});
+			update_programpoint_count(&envs[envs.size()-1].program_point_counts, exploded_node.getLocation());
 		}
 	}
 
-	std::sort(envs.begin(), envs.end(), [](EnvironmentOrigins &a, EnvironmentOrigins &b){ return a.sources.size() > b.sources.size(); });
+	std::sort(envs.begin(), envs.end(), [](EnvironmentEquivalenceClass &a, EnvironmentEquivalenceClass &b){ return a.sources.size() > b.sources.size(); });
 
   llvm::errs() << "Environment occurrences\tParent child redundancy count\t";
-  llvm::errs() << "othercount\t" << "BlockEdge_count \t" << "BlockEntrance_count \t" << "BlockExit_count \t" << "PreStmt_count \t" << "PreStmtPurgeDeadSymbols_count \t" << "PostStmtPurgeDeadSymbols_count \t" << "PreLoad_count \t" << "PostLoad_count \t" << "PreStore_count \t" << "PostStore_count \t" << "PostCondition_count \t" << "PostLValue_count \t" << "PostAllocatorCall_count \t" << "PostInitializer_count \t" << "CallEnter_count \t" << "CallExitBegin_count \t" << "CallExitEnd_count \t" << "FunctionExit_count \t" << "PreImplicitCall_count \t" << "PostImplicitCall_count \t" << "LoopExit_count \t" << "Epsilon_count\n";
+  print_program_point_count_header(llvm::errs());
+
+  ProgramPointCounter pred_succ_redundancy_program_point_counter;
+  unsigned long total_parent_child_redundancy_count = 0;
+  for (EnvironmentEquivalenceClass &ea : envs) {
+	 unsigned local_count = 0;
+	 for (vsize_t i = 0; i < ea.sources.size(); i += 1) {
+		for (vsize_t j = i + 1; j < ea.sources.size(); j += 1) {
+			if (ExplodedNode *successor = get_successor_if_parent_child_relationship(ea.sources[i], ea.sources[j])) {
+				total_parent_child_redundancy_count += 1;
+				local_count += 1;
+				update_programpoint_count(&pred_succ_redundancy_program_point_counter, successor->getLocation());
+				unsigned long s = sum_programpoint_count(&pred_succ_redundancy_program_point_counter);
+				assert(total_parent_child_redundancy_count == s);
+			}
+		}
+    }
+	llvm::errs() << ea.sources.size() << '\t' << local_count << '\t';
+	print_program_point_count(llvm::errs(), &ea.program_point_counts);
+  }
+
+  print_program_point_count_header(llvm::errs());
+  print_program_point_count(llvm::errs(), &pred_succ_redundancy_program_point_counter);
+  llvm::errs() << "total_parent_child_redundancy_count\t" << total_parent_child_redundancy_count << '\n';
+
+  unsigned long s = sum_programpoint_count(&pred_succ_redundancy_program_point_counter);
+  assert(total_parent_child_redundancy_count == s);
 
   const char default_node_style[] = "node[shape=rectangle color=black]\n";
   const char equivalent_environments_node_style[] = "node[shape=rectangle color=orange]\n";
 
   static bool printed_already = false;
   unsigned index = -1;
-  for (EnvironmentOrigins &ea : envs) {
+  for (EnvironmentEquivalenceClass &ea : envs) {
 	index += 1;
 	unsigned graphvizid = 0;
 
@@ -1287,19 +1381,6 @@ void ExprEngine::processEndWorklist() {
 		  }
 		  outs << "}\n";
 	  }
-  }
-
-  for (EnvironmentOrigins &ea : envs) {
-     unsigned parent_child_redundancy_count = 0;
-	 for (vsize_t i = 0; i < ea.sources.size(); i += 1) {
-		for (vsize_t j = i + 1; j < ea.sources.size(); j += 1) {
-			if (is_pred_succ_relationship(ea.sources[i], ea.sources[j])) {
-				parent_child_redundancy_count += 1;
-			}
-		}
-    }
-	llvm::errs() << ea.sources.size() << '\t' << parent_child_redundancy_count << '\t';
-	llvm::errs() << ea.other_count << '\t' << ea.BlockEdge_count << '\t' << ea.BlockEntrance_count << '\t' << ea.BlockExit_count << '\t' << ea.PreStmt_count << '\t' << ea.PreStmtPurgeDeadSymbols_count << '\t' << ea.PostStmtPurgeDeadSymbols_count << '\t' << ea.PreLoad_count << '\t' << ea.PostLoad_count << '\t' << ea.PreStore_count << '\t' << ea.PostStore_count << '\t' << ea.PostCondition_count << '\t' << ea.PostLValue_count << '\t' << ea.PostAllocatorCall_count << '\t' << ea.PostInitializer_count << '\t' << ea.CallEnter_count << '\t' << ea.CallExitBegin_count << '\t' << ea.CallExitEnd_count << '\t' << ea.FunctionExit_count << '\t' << ea.PreImplicitCall_count << '\t' << ea.PostImplicitCall_count << '\t' << ea.LoopExit_count << '\t' << ea.Epsilon_count << '\n';
   }
 }
 
