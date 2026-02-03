@@ -10,8 +10,8 @@ union MyUnion {
 };
 
 void optionDependentBehaviors(union MyUnion *U) {
-  char *V1 = U; // CHECK-MESSAGES: :[[@LINE]]:14: warning: the union pointed to by this expression has no field with the type 'char'
-  void *V2 = U; // CHECK-MESSAGES: :[[@LINE]]:14: warning: the union pointed to by this expression has no field with the type 'void'
-  (char*) U; // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'char'
-  (void*) U; // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'void'
+  char *V1 = U; // CHECK-MESSAGES: :[[@LINE]]:14: warning: invalid cast from 'union MyUnion *' to 'char *'
+  void *V2 = U; // CHECK-MESSAGES: :[[@LINE]]:14: warning: invalid cast from 'union MyUnion *' to 'void *'
+  (char*) U; // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'union MyUnion *' to 'char *'
+  (void*) U; // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'union MyUnion *' to 'void *'
 }

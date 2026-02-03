@@ -167,65 +167,63 @@ typedef union MyUnion TypedefMyUnion;
 using UsingMyUnion = union MyUnion;
 
 void castToBaseClassPointerTest() {
-  union { PublicDerived  field; } *U1;
+  union UnionWithPublicDerived { PublicDerived  field; } *U1;
   typedef union { PublicDerived  field; } TypedefU1;
   TypedefU1 *TU1;
   using UsingU1 = union { PublicDerived  field; };
   UsingU1 *UU1;
-  (Base*) U1;                   // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'Base'
-  (Base*) TU1;                  // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'Base'
-  (Base*) UU1;                  // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'Base'
-  reinterpret_cast<Base*>(U1);  // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'Base'
-  reinterpret_cast<Base*>(TU1); // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'Base'
-  reinterpret_cast<Base*>(UU1); // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'Base'
+  (Base*) U1;                   // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'union UnionWithPublicDerived *' to 'Base *'
+  (Base*) TU1;                  // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'TypedefU1 *' to 'Base *'
+  (Base*) UU1;                  // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'UsingU1 *' to 'Base *'
+  reinterpret_cast<Base*>(U1);  // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'union UnionWithPublicDerived *' to 'Base *'
+  reinterpret_cast<Base*>(TU1); // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'TypedefU1 *' to 'Base *'
+  reinterpret_cast<Base*>(UU1); // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'UsingU1 *' to 'Base *'
 
-#if 1
-  union { PublicDerived2 field; } *U2;
+  union UnionWithPublicDerived2 { PublicDerived2 field; } *U2;
   typedef union { PublicDerived2 field; } TypedefU2;
   TypedefU2 *TU2;
   using UsingU2 = union { PublicDerived2 field; };
   UsingU2 *UU2;
-  (Base*) U2;                   // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'Base'
-  (Base*) TU2;                  // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'Base'
-  (Base*) UU2;                  // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'Base'
-  reinterpret_cast<Base*>(U2);  // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'Base'
-  reinterpret_cast<Base*>(TU2); // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'Base'
-  reinterpret_cast<Base*>(UU2); // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'Base'
+  (Base*) U2;                   // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'union UnionWithPublicDerived2 *' to 'Base *'
+  (Base*) TU2;                  // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'TypedefU2 *' to 'Base *'
+  (Base*) UU2;                  // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'UsingU2 *' to 'Base *'
+  reinterpret_cast<Base*>(U2);  // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'union UnionWithPublicDerived2 *' to 'Base *'
+  reinterpret_cast<Base*>(TU2); // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'TypedefU2 *' to 'Base *'
+  reinterpret_cast<Base*>(UU2); // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'UsingU2 *' to 'Base *'
 
-  union { PublicDerived3 field; } *U3;
+  union UnionPublicDerived3 { PublicDerived3 field; } *U3;
   typedef union { PublicDerived3 field; } TypedefU3;
   TypedefU3 *TU3;
   using UsingU3 = union { PublicDerived3 field; };
   UsingU3 *UU3;
-  (Base*) U3;                   // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'Base'
-  (Base*) TU3;                  // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'Base'
-  (Base*) UU3;                  // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'Base'
-  reinterpret_cast<Base*>(U3);  // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'Base'
-  reinterpret_cast<Base*>(TU3); // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'Base'
-  reinterpret_cast<Base*>(UU3); // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'Base'
+  (Base*) U3;                   // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'union UnionPublicDerived3 *' to 'Base *'
+  (Base*) TU3;                  // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'TypedefU3 *' to 'Base *'
+  (Base*) UU3;                  // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'UsingU3 *' to 'Base *'
+  reinterpret_cast<Base*>(U3);  // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'union UnionPublicDerived3 *' to 'Base *'
+  reinterpret_cast<Base*>(TU3); // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'TypedefU3 *' to 'Base *'
+  reinterpret_cast<Base*>(UU3); // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'UsingU3 *' to 'Base *'
 
-  union { ProtectedDerived field; } *U4;
+  union UnionWithProtectedDerived { ProtectedDerived field; } *U4;
   typedef union { PublicDerived3 field; } TypedefU4;
   TypedefU4 *TU4;
   using UsingU4 = union { PublicDerived3 field; };
   UsingU4 *UU4;
-  (Base*) U4;                   // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'Base'
-  (Base*) TU4;                  // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'Base'
-  (Base*) UU4;                  // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'Base'
-  reinterpret_cast<Base*>(U4);  // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'Base'
-  reinterpret_cast<Base*>(TU4); // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'Base'
-  reinterpret_cast<Base*>(UU4); // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'Base'
+  (Base*) U4;                   // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'union UnionWithProtectedDerived *' to 'Base *'
+  (Base*) TU4;                  // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'TypedefU4 *' to 'Base *'
+  (Base*) UU4;                  // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'UsingU4 *' to 'Base *'
+  reinterpret_cast<Base*>(U4);  // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'union UnionWithProtectedDerived *' to 'Base *'
+  reinterpret_cast<Base*>(TU4); // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'TypedefU4 *' to 'Base *'
+  reinterpret_cast<Base*>(UU4); // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'UsingU4 *' to 'Base *'
 
-  union { PrivateDerived field; } *U5;
+  union UnionWithPrivateDerived { PrivateDerived field; } *U5;
   typedef union { PrivateDerived field; } TypedefU5;
   TypedefU5 *TU5;
   using UsingU5 = union { PrivateDerived field; };
   UsingU5 *UU5;
-  (Base*) U5;                   // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'Base'
-  (Base*) TU5;                  // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'Base'
-  (Base*) UU5;                  // CHECK-MESSAGES: :[[@LINE]]:11: warning: the union pointed to by this expression has no field with the type 'Base'
-  reinterpret_cast<Base*>(U5);  // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'Base'
-  reinterpret_cast<Base*>(TU5); // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'Base'
-  reinterpret_cast<Base*>(UU5); // CHECK-MESSAGES: :[[@LINE]]:27: warning: the union pointed to by this expression has no field with the type 'Base'
-#endif
+  (Base*) U5;                   // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'union UnionWithPrivateDerived *' to 'Base *'
+  (Base*) TU5;                  // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'TypedefU5 *' to 'Base *'
+  (Base*) UU5;                  // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'UsingU5 *' to 'Base *'
+  reinterpret_cast<Base*>(U5);  // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'union UnionWithPrivateDerived *' to 'Base *'
+  reinterpret_cast<Base*>(TU5); // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'TypedefU5 *' to 'Base *'
+  reinterpret_cast<Base*>(UU5); // CHECK-MESSAGES: :[[@LINE]]:3: warning: invalid cast from 'UsingU5 *' to 'Base *'
 }

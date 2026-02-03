@@ -13,10 +13,8 @@
 
 namespace clang::tidy::bugprone {
 
-/// Gives warnings for implicit cast, C-style cast and `reinterpret_cast`
-/// expressions between pointers, where the source type is a pointer to
-/// a `union`, and that `union` has no field with the same type as the
-/// cast target's pointee type.
+/// Checks implicit cast, C-style cast and `reinterpret_cast` expressions
+/// that convert a `struct`, a `class` or a `union` pointer.
 ///
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/bugprone/union-ptr-cast.html
@@ -29,15 +27,18 @@ public:
 
 private:
   const bool AllowCastToBaseClass;
-  const bool AllowCastToSubField;
   const bool AlwaysAllowCastToCharPtr;
   const bool AlwaysAllowCastToVoidPtr;
   const bool CompareCanonicalTypes;
   const bool IgnoreIfUnionIsFromStdNamespace;
   const bool IgnoreIfUnionIsFromSystemHeader;
 
-  bool hasFieldOfType(const PointerType *Target, const RecordDecl *Record) const;
-  bool shouldWarn(const PointerType *CastTargetPointerType, const RecordDecl *Union) const;
+  void emitWarning(const CastExpr *Cast, QualType CastQT,
+                   const ast_matchers::MatchFinder::MatchResult &Result);
+  bool notStandardLayoutIfCPP(const RecordDecl *d) const;
+  bool castToAllowedPrimitiveTypePtr(const PointerType *Target) const;
+  bool hasFieldOfType(const PointerType *Target, const RecordDecl *Record,
+                      const ASTContext *AST) const;
 };
 
 } // namespace clang::tidy::bugprone

@@ -3,10 +3,8 @@
 bugprone-union-ptr-cast
 =======================
 
-Gives warnings for implicit cast, C-style cast and ``reinterpret_cast``
-expressions between pointers, where the source type is a pointer to
-a ``union``, and that ``union`` has no field with the same type as the
-cast target's pointee type.
+Checks implicit cast, C-style cast and ``reinterpret_cast`` expressions
+that convert a ``struct``, a ``class`` or a ``union`` pointer.
 
 .. code-block:: c++
 
@@ -19,21 +17,20 @@ cast target's pointee type.
   void example(union MyUnion *U) {
     int   *I = U;
     float *F = U;
-    short *S = U; // warning: the union pointed to by this expression has no field with the type 'short'
-    double *D = U; // warning: the union pointed to by this expression has no field with the type 'double'
+    short *S = U; // warning: invalid cast from 'union MyUnion *' to 'short *'
+    double *D = U; // warning: invalid cast from 'union MyUnion *' to 'double *'
 
     (int*)   U;
     (float*) U;
-    (short*) U; // warning: the union pointed to by this expression has no field with the type 'short'
-    (double*) U; // warning: the union pointed to by this expression has no field with the type 'double'
+    (short*) U; // warning: invalid cast from 'union MyUnion *' to 'short *'
+    (double*) U; // warning: invalid cast from 'union MyUnion *' to 'double *'
 
     reinterpret_cast<int*>(U);
     reinterpret_cast<float*>(U);
-    reinterpret_cast<short*>(U); // warning: the union pointed to by this expression has no field with the type 'short'
-    reinterpret_cast<double*>(U); // warning: the union pointed to by this expression has no field with the type 'double'
+    reinterpret_cast<short*>(U); // warning: invalid cast from 'union MyUnion *' to 'short *'
+    reinterpret_cast<double*>(U); // warning: invalid cast from 'union MyUnion *' to 'double *'
   }
 
-The check can retrieve the pointee target type through type aliases.
 In case the target pointer type of the cast is behind a type alias,
 then the check retrieves the pointer type itself from behind the alias.
 In the example below, the check retrieves the type behind ``(ShortPtr)``,
@@ -50,7 +47,7 @@ namely, ``short *``.
 
   void example(union MyUnion *U) {
     (ShortPtr) U;
-    (IntPtr) U; // warning: the union pointed to by this expression has no field with the type 'int'
+    (IntPtr) U; // warning: invalid cast from 'union MyUnion *' to 'int *'
   }
 
 Options
@@ -80,18 +77,6 @@ of the cast target's pointee type.
     B = (Base*) U;
     B = reinterpret_cast<Base*>(U);
   }
-
-.. option:: AllowCastToSubField
-
-This option is enabled by default.
-
-The C standards state that the address of a ``union`` object is the same
-as the addresses of that ``union``'s fields. Furthermore, there is an analogous
-rule for structures as well, meaning that a pointer to a structure also points to its first field.
-
-These rules are present in C++ as well with the extra requirement, that the ``union``, ``struct`` or ``class`` must have a so called standard-layout.
-
-See in the standards:
 
 .. option:: AlwaysAllowCastToCharPtr, AlwaysAllowCastToVoidPtr
 

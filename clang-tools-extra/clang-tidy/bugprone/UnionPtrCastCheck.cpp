@@ -13,26 +13,20 @@ using namespace clang::ast_matchers;
 
 namespace clang::tidy::bugprone {
 
-static constexpr llvm::StringLiteral UnionBindName = "union";
-static constexpr llvm::StringLiteral CastBindName = "cast";
+const auto RecordBindName = "record";
+const auto CastBindName = "cast";
+const auto ParentExplicitCastBindName = "parentExplicitCast";
 
-// This macro was created to initialize the class fields with a default value or
-// with the value taken from the clang-tidy configuration file.
-// The same name is used for the check options in the clang-tidy configuration
-// file and in the class fields. This is accomplished with the # preprocessor
-// operator, which converts its argument to a string literal.
-#define InitOption(option_name, default_value)                                \
+#define InitOption(option_name, default_value)                                 \
   option_name(Options.get(#option_name, default_value))
 
 UnionPtrCastCheck::UnionPtrCastCheck(StringRef Name, ClangTidyContext *Context)
-    : ClangTidyCheck(Name, Context),
-      InitOption(AllowCastToBaseClass, true),
-      InitOption(AllowCastToSubField, true),
+    : ClangTidyCheck(Name, Context), InitOption(AllowCastToBaseClass, true),
       InitOption(AlwaysAllowCastToCharPtr, true),
       InitOption(AlwaysAllowCastToVoidPtr, true),
       InitOption(CompareCanonicalTypes, false),
       InitOption(IgnoreIfUnionIsFromStdNamespace, true),
-      InitOption(IgnoreIfUnionIsFromSystemHeader, true) { }
+      InitOption(IgnoreIfUnionIsFromSystemHeader, true) {}
 
 bool UnionPtrCastCheck::isLanguageVersionSupported(
     const LangOptions &LangOpts) const {
@@ -48,69 +42,98 @@ void UnionPtrCastCheck::registerMatchers(MatchFinder *Finder) {
   auto SystemHeaderFilter = IgnoreIfUnionIsFromSystemHeader
                                 ? decl(unless(isExpansionInSystemHeader()))
                                 : decl();
-  auto HasPointerToUnionSourceExpr = hasSourceExpression(hasType(
-      pointerType(pointee(hasUnqualifiedDesugaredType(recordType(hasDeclaration(
-          recordDecl(isUnion(), StdNamespaceFilter, SystemHeaderFilter)
-              .bind(UnionBindName))))))));
-  auto IsRelevantCastKindAndSourceExpr =
-      allOf(hasCastKind(CK_BitCast), HasPointerToUnionSourceExpr);
+
+  auto BindParentNoOpExplicitCast =
+      anyOf(hasParent(explicitCastExpr(hasCastKind(CK_NoOp))
+                          .bind(ParentExplicitCastBindName)),
+            anything());
+
+  auto HasPointerToUnionSourceExpr =
+      hasSourceExpression(ignoringParenImpCasts(hasType(
+          qualType(pointerType(pointee(hasUnqualifiedDesugaredType(recordType(
+              hasDeclaration(recordDecl(StdNamespaceFilter, SystemHeaderFilter)
+                                 .bind(RecordBindName))))))))));
+
+  auto IsRelevantCast =
+      allOf(hasType(qualType(isAnyPointer())), hasCastKind(CK_BitCast),
+            HasPointerToUnionSourceExpr, BindParentNoOpExplicitCast);
 
   Finder->addMatcher(
-      implicitCastExpr(hasImplicitDestinationType(isAnyPointer()),
-                       IsRelevantCastKindAndSourceExpr)
+      mapAnyOf(cStyleCastExpr, cxxReinterpretCastExpr, implicitCastExpr)
+          .with(IsRelevantCast)
           .bind(CastBindName),
       this);
-  Finder->addMatcher(mapAnyOf(cStyleCastExpr, cxxReinterpretCastExpr)
-                         .with(allOf(hasDestinationType(isAnyPointer()),
-                                     IsRelevantCastKindAndSourceExpr))
-                         .bind(CastBindName),
-                     this);
 }
 
-void UnionPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
-  const auto *Union = Result.Nodes.getNodeAs<RecordDecl>(UnionBindName);
-  const auto *Cast = Result.Nodes.getNodeAs<CastExpr>(CastBindName);
+bool UnionPtrCastCheck::notStandardLayoutIfCPP(const RecordDecl *Record) const {
+  if (getLangOpts().CPlusPlus)
+    if (const auto *CXXRecord = llvm::dyn_cast<CXXRecordDecl>(Record))
+      if (Record->isCompleteDefinition() && !CXXRecord->isStandardLayout())
+        return true;
+  return false;
+}
 
-  assert(Union && "Union declaration should be returned in MatchResult!");
-  assert(Cast && "Cast expression should be returned in MatchResult!");
-
-  QualType CastQT = CompareCanonicalTypes
-                        ? Cast->getType().getCanonicalType()
-                        : Cast->getType().getDesugaredType(*Result.Context);
-
-  const auto *T = dyn_cast<PointerType>(CastQT.getTypePtr());
-  if (shouldWarn(T, Union))
-    diag(Cast->getSubExpr()->getBeginLoc(),
-         "the union pointed to by this expression has no field with the type "
-         "'%0'")
-        << T->getPointeeType().getAsString();
+bool UnionPtrCastCheck::castToAllowedPrimitiveTypePtr(
+    const PointerType *Target) const {
+  if (const auto *PointeeType =
+          dyn_cast<BuiltinType>(Target->getPointeeType().getTypePtr())) {
+    if (AlwaysAllowCastToVoidPtr && PointeeType->isVoidType())
+      return true;
+    if (AlwaysAllowCastToCharPtr && PointeeType->isCharType())
+      return true;
+  }
+  return false;
 }
 
 static bool fieldDerivesFrom(const FieldDecl *Field,
                              const CXXRecordDecl *PointeeCXXRecordDecl) {
   const Type *FieldType = Field->getType().getTypePtr();
-  const CXXRecordDecl *CXXD = dyn_cast<CXXRecordDecl>(
-      FieldType ? FieldType->getAsCXXRecordDecl() : nullptr);
-  if (CXXD && PointeeCXXRecordDecl && CXXD->isDerivedFrom(PointeeCXXRecordDecl))
+  const CXXRecordDecl *CXXD =
+      FieldType ? FieldType->getAsCXXRecordDecl() : nullptr;
+  if (CXXD && CXXD->hasDefinition() && PointeeCXXRecordDecl &&
+      PointeeCXXRecordDecl->hasDefinition() &&
+      CXXD->getDefinition()->isDerivedFrom(
+          PointeeCXXRecordDecl->getDefinition()))
     return true;
   return false;
 }
 
-bool UnionPtrCastCheck::hasFieldOfType(const PointerType *Target, const RecordDecl *Record) const {
+static bool pointeeTargetDerivesFrom(const PointerType *Target,
+                                     const RecordDecl *Record) {
+  const CXXRecordDecl *TargetCXXRDecl = Target->getPointeeCXXRecordDecl();
+  const CXXRecordDecl *SourceCXXRDecl = llvm::dyn_cast<CXXRecordDecl>(Record);
+  if (TargetCXXRDecl && TargetCXXRDecl->hasDefinition() && SourceCXXRDecl &&
+      SourceCXXRDecl->hasDefinition() &&
+      SourceCXXRDecl->getDefinition()->isDerivedFrom(
+          TargetCXXRDecl->getDefinition()))
+    return true;
+  return false;
+}
+
+bool UnionPtrCastCheck::hasFieldOfType(const PointerType *Target,
+                                       const RecordDecl *Record,
+                                       const ASTContext *AST) const {
   if (!Record)
     return false;
-  if (const auto *CXXRecord = llvm::dyn_cast<CXXRecordDecl>(Record))
-    if (!CXXRecord->isStandardLayout())
-      return false;
   for (const FieldDecl *Field : Record->fields()) {
     QualType FieldType = CompareCanonicalTypes
                              ? Field->getType().getCanonicalType()
-                             : Field->getType();
-    if (FieldType == Target->getPointeeType())
+                             : Field->getType().getDesugaredType(*AST);
+    if (FieldType.getUnqualifiedType() ==
+        Target->getPointeeType().getDesugaredType(*AST).getUnqualifiedType())
+      if (Target->getPointeeType()
+              .getDesugaredType(*AST)
+              .isAtLeastAsQualifiedAs(FieldType, *AST))
+        return true;
+    // Do not distinguish (struct Foo*) and (Foo*) in C++
+    const Type *TargetType = Target->getPointeeType().getTypePtr();
+    if (TargetType && TargetType->isElaboratedTypeSpecifier() &&
+        FieldType == TargetType->getLocallyUnqualifiedSingleStepDesugaredType())
       return true;
-    if (AllowCastToBaseClass && fieldDerivesFrom(Field, Target->getPointeeCXXRecordDecl()))
+    if (AllowCastToBaseClass &&
+        fieldDerivesFrom(Field, Target->getPointeeCXXRecordDecl()))
       return true;
-    if (AllowCastToSubField && hasFieldOfType(Target, FieldType.getTypePtr()->getAsRecordDecl()))
+    if (hasFieldOfType(Target, FieldType.getTypePtr()->getAsRecordDecl(), AST))
       return true;
     if (!Record->isUnion())
       break;
@@ -118,22 +141,69 @@ bool UnionPtrCastCheck::hasFieldOfType(const PointerType *Target, const RecordDe
   return false;
 }
 
-bool UnionPtrCastCheck::shouldWarn(const PointerType *Target, const RecordDecl *Union) const {
+void UnionPtrCastCheck::emitWarning(const CastExpr *Cast, QualType CastQT,
+                                    const MatchFinder::MatchResult &Result) {
+  auto warningLoc = Cast->getBeginLoc();
+  if (const ImplicitCastExpr *ICast = llvm::dyn_cast<ImplicitCastExpr>(Cast))
+    if (ICast->isPartOfExplicitCast()) {
+      const auto *ParentCast =
+          Result.Nodes.getNodeAs<CastExpr>(ParentExplicitCastBindName);
+      if (Cast) {
+        warningLoc = ParentCast->getBeginLoc();
+      }
+    }
+
+  diag(warningLoc, "invalid cast from '%0' to '%1'")
+      << Cast->getSubExpr()->IgnoreParenImpCasts()->getType().getAsString()
+      << CastQT.getAsString();
+}
+
+void UnionPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
+  const auto *Record = Result.Nodes.getNodeAs<RecordDecl>(RecordBindName);
+  const auto *Cast = Result.Nodes.getNodeAs<CastExpr>(CastBindName);
+
+  assert(Record && "Record declaration should be returned in MatchResult!");
+  assert(Cast && "Cast expression should be returned in MatchResult!");
+
+  QualType CastQT = CompareCanonicalTypes
+                        ? Cast->getType().getCanonicalType()
+                        : Cast->getType().getDesugaredType(*Result.Context);
+  const auto *Target = dyn_cast<PointerType>(CastQT.getTypePtr());
   if (!Target)
-    return false;
+    return;
 
-  if (const auto *PointeeType =
-          dyn_cast<BuiltinType>(Target->getPointeeType().getTypePtr())) {
-    if (AlwaysAllowCastToVoidPtr && PointeeType->isVoidType())
-      return false;
-    if (AlwaysAllowCastToCharPtr && PointeeType->isCharType())
-      return false;
+  if (castToAllowedPrimitiveTypePtr(Target))
+    return;
+
+  if (pointeeTargetDerivesFrom(Target, Record))
+    return;
+
+  auto RecordName = Cast->getSubExpr()
+                        ->IgnoreParenImpCasts()
+                        ->getType()
+                        .getTypePtr()
+                        ->getPointeeType()
+                        .getAsString();
+  auto PointeeTypeName = Target->getPointeeType().getAsString();
+  if (hasFieldOfType(Target, Record, Result.Context)) {
+    if (notStandardLayoutIfCPP(Record)) {
+      emitWarning(Cast, CastQT, Result);
+      diag(Record->getBeginLoc(), "'%0' is not standard layout",
+           DiagnosticIDs::Note)
+          << RecordName;
+    }
+  } else {
+    emitWarning(Cast, CastQT, Result);
+    if (Record->isUnion()) {
+      diag(Record->getBeginLoc(), "'%0' has no field of type '%1'",
+           DiagnosticIDs::Note)
+          << RecordName << PointeeTypeName;
+    } else {
+      diag(Record->getBeginLoc(), "'%0' has no initial subobject of type '%1'",
+           DiagnosticIDs::Note)
+          << RecordName << PointeeTypeName;
+    }
   }
-
-  if (hasFieldOfType(Target, Union))
-    return false;
-
-  return true;
 }
 
 } // namespace clang::tidy::bugprone

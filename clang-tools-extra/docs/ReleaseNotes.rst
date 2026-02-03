@@ -139,10 +139,8 @@ New checks
 - New :doc:`bugprone-union-ptr-cast
   <clang-tidy/checks/bugprone/union-ptr-cast>` check.
 
-  Gives warnings for implicit cast, C-style cast and ``reinterpret_cast``
-  expressions between pointers, where the source type is a pointer to
-  a ``union``, and that ``union`` has no field with the same type as the
-  cast target's pointee type.
+  Checks implicit cast, C-style cast and ``reinterpret_cast`` expressions
+  that convert a ``struct``, a ``class`` or a ``union`` pointer.
 
 - New :doc:`portability-avoid-pragma-once
   <clang-tidy/checks/portability/avoid-pragma-once>` check.
