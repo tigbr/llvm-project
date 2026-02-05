@@ -1,4 +1,4 @@
-//===--- UnionPtrCastCheck.cpp - clang-tidy -------------------------------===//
+//===--- RecordPtrCastCheck.cpp - clang-tidy ------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "UnionPtrCastCheck.h"
+#include "RecordPtrCastCheck.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
 using namespace clang::ast_matchers;
@@ -20,26 +20,26 @@ const auto ParentExplicitCastBindName = "parentExplicitCast";
 #define InitOption(option_name, default_value)                                 \
   option_name(Options.get(#option_name, default_value))
 
-UnionPtrCastCheck::UnionPtrCastCheck(StringRef Name, ClangTidyContext *Context)
-    : ClangTidyCheck(Name, Context), InitOption(AllowCastToBaseClass, true),
+RecordPtrCastCheck::RecordPtrCastCheck(StringRef Name, ClangTidyContext *Context)
+    : ClangTidyCheck(Name, Context),
       InitOption(AlwaysAllowCastToCharPtr, true),
       InitOption(AlwaysAllowCastToVoidPtr, true),
       InitOption(CompareCanonicalTypes, false),
-      InitOption(IgnoreIfUnionIsFromStdNamespace, true),
-      InitOption(IgnoreIfUnionIsFromSystemHeader, true) {}
+      InitOption(IgnoreIfRecordIsFromStdNamespace, true),
+      InitOption(IgnoreIfRecordIsFromSystemHeader, true) {}
 
-bool UnionPtrCastCheck::isLanguageVersionSupported(
+bool RecordPtrCastCheck::isLanguageVersionSupported(
     const LangOptions &LangOpts) const {
   return !LangOpts.ObjC;
 }
 
-void UnionPtrCastCheck::registerMatchers(MatchFinder *Finder) {
+void RecordPtrCastCheck::registerMatchers(MatchFinder *Finder) {
   // Wrapping the filters in a decl ensures that both branches have the same
   // return type, otherwise a compiler error is given.
-  auto StdNamespaceFilter = IgnoreIfUnionIsFromStdNamespace
+  auto StdNamespaceFilter = IgnoreIfRecordIsFromStdNamespace
                                 ? decl(unless(isInStdNamespace()))
                                 : decl();
-  auto SystemHeaderFilter = IgnoreIfUnionIsFromSystemHeader
+  auto SystemHeaderFilter = IgnoreIfRecordIsFromSystemHeader
                                 ? decl(unless(isExpansionInSystemHeader()))
                                 : decl();
 
@@ -48,7 +48,7 @@ void UnionPtrCastCheck::registerMatchers(MatchFinder *Finder) {
                           .bind(ParentExplicitCastBindName)),
             anything());
 
-  auto HasPointerToUnionSourceExpr =
+  auto HasPointerToRecordSourceExpr =
       hasSourceExpression(ignoringParenImpCasts(hasType(
           qualType(pointerType(pointee(hasUnqualifiedDesugaredType(recordType(
               hasDeclaration(recordDecl(StdNamespaceFilter, SystemHeaderFilter)
@@ -56,7 +56,7 @@ void UnionPtrCastCheck::registerMatchers(MatchFinder *Finder) {
 
   auto IsRelevantCast =
       allOf(hasType(qualType(isAnyPointer())), hasCastKind(CK_BitCast),
-            HasPointerToUnionSourceExpr, BindParentNoOpExplicitCast);
+            HasPointerToRecordSourceExpr, BindParentNoOpExplicitCast);
 
   Finder->addMatcher(
       mapAnyOf(cStyleCastExpr, cxxReinterpretCastExpr, implicitCastExpr)
@@ -65,7 +65,7 @@ void UnionPtrCastCheck::registerMatchers(MatchFinder *Finder) {
       this);
 }
 
-bool UnionPtrCastCheck::notStandardLayoutIfCPP(const RecordDecl *Record) const {
+bool RecordPtrCastCheck::notStandardLayoutIfCPP(const RecordDecl *Record) const {
   if (getLangOpts().CPlusPlus)
     if (const auto *CXXRecord = llvm::dyn_cast<CXXRecordDecl>(Record))
       if (Record->isCompleteDefinition() && !CXXRecord->isStandardLayout())
@@ -73,7 +73,7 @@ bool UnionPtrCastCheck::notStandardLayoutIfCPP(const RecordDecl *Record) const {
   return false;
 }
 
-bool UnionPtrCastCheck::castToAllowedPrimitiveTypePtr(
+bool RecordPtrCastCheck::castToAllowedPrimitiveTypePtr(
     const PointerType *Target) const {
   if (const auto *PointeeType =
           dyn_cast<BuiltinType>(Target->getPointeeType().getTypePtr())) {
@@ -110,7 +110,7 @@ static bool pointeeTargetDerivesFrom(const PointerType *Target,
   return false;
 }
 
-bool UnionPtrCastCheck::hasFieldOfType(const PointerType *Target,
+bool RecordPtrCastCheck::hasFieldOfType(const PointerType *Target,
                                        const RecordDecl *Record,
                                        const ASTContext *AST) const {
   if (!Record)
@@ -118,20 +118,23 @@ bool UnionPtrCastCheck::hasFieldOfType(const PointerType *Target,
   for (const FieldDecl *Field : Record->fields()) {
     QualType FieldType = CompareCanonicalTypes
                              ? Field->getType().getCanonicalType()
-                             : Field->getType().getDesugaredType(*AST);
+                             : Field->getType();
+    QualType PointeeType = Target->getPointeeType();
+    QualType DesugaredPointeeType = PointeeType.getDesugaredType(*AST);
+    if (FieldType == PointeeType)
+      return true;
     if (FieldType.getUnqualifiedType() ==
-        Target->getPointeeType().getDesugaredType(*AST).getUnqualifiedType())
-      if (Target->getPointeeType()
-              .getDesugaredType(*AST)
-              .isAtLeastAsQualifiedAs(FieldType, *AST))
+        DesugaredPointeeType.getUnqualifiedType())
+      if (DesugaredPointeeType.isAtLeastAsQualifiedAs(FieldType, *AST))
         return true;
     // Do not distinguish (struct Foo*) and (Foo*) in C++
-    const Type *TargetType = Target->getPointeeType().getTypePtr();
-    if (TargetType && TargetType->isElaboratedTypeSpecifier() &&
-        FieldType == TargetType->getLocallyUnqualifiedSingleStepDesugaredType())
+    while (!llvm::dyn_cast<TypedefType>(FieldType.getTypePtr()) && !FieldType.isCanonical()) {
+      FieldType = FieldType.getSingleStepDesugaredType(*AST);
+    }
+    if (DesugaredPointeeType == FieldType) {
       return true;
-    if (AllowCastToBaseClass &&
-        fieldDerivesFrom(Field, Target->getPointeeCXXRecordDecl()))
+    }
+    if (fieldDerivesFrom(Field, Target->getPointeeCXXRecordDecl()))
       return true;
     if (hasFieldOfType(Target, FieldType.getTypePtr()->getAsRecordDecl(), AST))
       return true;
@@ -141,7 +144,7 @@ bool UnionPtrCastCheck::hasFieldOfType(const PointerType *Target,
   return false;
 }
 
-void UnionPtrCastCheck::emitWarning(const CastExpr *Cast, QualType CastQT,
+void RecordPtrCastCheck::emitWarning(const CastExpr *Cast, QualType CastQT,
                                     const MatchFinder::MatchResult &Result) {
   auto warningLoc = Cast->getBeginLoc();
   if (const ImplicitCastExpr *ICast = llvm::dyn_cast<ImplicitCastExpr>(Cast))
@@ -158,7 +161,7 @@ void UnionPtrCastCheck::emitWarning(const CastExpr *Cast, QualType CastQT,
       << CastQT.getAsString();
 }
 
-void UnionPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
+void RecordPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Record = Result.Nodes.getNodeAs<RecordDecl>(RecordBindName);
   const auto *Cast = Result.Nodes.getNodeAs<CastExpr>(CastBindName);
 
@@ -185,14 +188,13 @@ void UnionPtrCastCheck::check(const MatchFinder::MatchResult &Result) {
                         ->getPointeeType()
                         .getAsString();
   auto PointeeTypeName = Target->getPointeeType().getAsString();
-  if (hasFieldOfType(Target, Record, Result.Context)) {
-    if (notStandardLayoutIfCPP(Record)) {
-      emitWarning(Cast, CastQT, Result);
-      diag(Record->getBeginLoc(), "'%0' is not standard layout",
-           DiagnosticIDs::Note)
-          << RecordName;
-    }
-  } else {
+  if (notStandardLayoutIfCPP(Record)) {
+    emitWarning(Cast, CastQT, Result);
+    diag(Record->getBeginLoc(), "'%0' is not standard layout",
+         DiagnosticIDs::Note)
+        << RecordName;
+  }
+  if (!hasFieldOfType(Target, Record, Result.Context)) {
     emitWarning(Cast, CastQT, Result);
     if (Record->isUnion()) {
       diag(Record->getBeginLoc(), "'%0' has no field of type '%1'",

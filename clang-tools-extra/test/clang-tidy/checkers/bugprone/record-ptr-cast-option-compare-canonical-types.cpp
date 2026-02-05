@@ -1,6 +1,6 @@
-// RUN: %check_clang_tidy -std=c++98-or-later %s bugprone-union-ptr-cast %t \
+// RUN: %check_clang_tidy -std=c++98-or-later %s bugprone-record-ptr-cast %t \
 // RUN:   --config='{CheckOptions: { \
-// RUN:     bugprone-union-ptr-cast.CompareCanonicalTypes: false \
+// RUN:     bugprone-record-ptr-cast.CompareCanonicalTypes: false \
 // RUN:  }}' --
 
 typedef short *ShortPtrTypedef;
@@ -24,7 +24,6 @@ using UsingMyUnion = union MyUnion;
 
 void test(union MyUnion *U, TypedefMyUnion *TU, UsingMyUnion *UU) {
 
-  // Do not differentiate these types when CompareCanonicalTypes is disabled
   (struct BarStruct*) U;
   (class BarClass*) U;
   (union BarUnion*) U;

@@ -1,11 +1,11 @@
-// RUN: %check_clang_tidy -std=c++98-or-later %s bugprone-union-ptr-cast %t \
+// RUN: %check_clang_tidy -std=c++98-or-later %s bugprone-record-ptr-cast %t \
 // RUN:   --config='{CheckOptions: { \
-// RUN:     bugprone-union-ptr-cast.AlwaysAllowCastToVoidPtr: false, \
-// RUN:     bugprone-union-ptr-cast.IgnoreIfUnionIsFromStdNamespace: false, \
-// RUN:     bugprone-union-ptr-cast.IgnoreIfUnionIsFromSystemHeader: false \
+// RUN:     bugprone-record-ptr-cast.AlwaysAllowCastToVoidPtr: false, \
+// RUN:     bugprone-record-ptr-cast.IgnoreIfRecordIsFromStdNamespace: false, \
+// RUN:     bugprone-record-ptr-cast.IgnoreIfRecordIsFromSystemHeader: false \
 // RUN:  }}' -- \
-// RUN: -I%S/Inputs/union-ptr-cast \
-// RUN: -isystem %S/Inputs/union-ptr-cast/system
+// RUN: -I%S/Inputs/record-ptr-cast \
+// RUN: -isystem %S/Inputs/record-ptr-cast/system
 
 #include "stdnamespace.h"
 #include <pthread.h>

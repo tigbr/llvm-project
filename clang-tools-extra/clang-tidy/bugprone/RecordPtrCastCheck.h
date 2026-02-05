@@ -1,4 +1,4 @@
-//===--- UnionPtrCastCheck.h - clang-tidy -----------------------*- C++ -*-===//
+//===--- RecordPtrCastCheck.h - clang-tidy ----------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BUGPRONE_UNIONPTRCASTCHECK_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BUGPRONE_UNIONPTRCASTCHECK_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BUGPRONE_RECORDPTRCASTCHECK_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BUGPRONE_RECORDPTRCASTCHECK_H
 
 #include "../ClangTidyCheck.h"
 
@@ -17,21 +17,20 @@ namespace clang::tidy::bugprone {
 /// that convert a `struct`, a `class` or a `union` pointer.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/bugprone/union-ptr-cast.html
-class UnionPtrCastCheck : public ClangTidyCheck {
+/// http://clang.llvm.org/extra/clang-tidy/checks/bugprone/record-ptr-cast.html
+class RecordPtrCastCheck : public ClangTidyCheck {
 public:
-  UnionPtrCastCheck(StringRef Name, ClangTidyContext *Context);
+  RecordPtrCastCheck(StringRef Name, ClangTidyContext *Context);
   bool isLanguageVersionSupported(const LangOptions &LangOpts) const override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 
 private:
-  const bool AllowCastToBaseClass;
   const bool AlwaysAllowCastToCharPtr;
   const bool AlwaysAllowCastToVoidPtr;
   const bool CompareCanonicalTypes;
-  const bool IgnoreIfUnionIsFromStdNamespace;
-  const bool IgnoreIfUnionIsFromSystemHeader;
+  const bool IgnoreIfRecordIsFromStdNamespace;
+  const bool IgnoreIfRecordIsFromSystemHeader;
 
   void emitWarning(const CastExpr *Cast, QualType CastQT,
                    const ast_matchers::MatchFinder::MatchResult &Result);
@@ -43,4 +42,4 @@ private:
 
 } // namespace clang::tidy::bugprone
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BUGPRONE_UNIONPTRCASTCHECK_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_BUGPRONE_RECORDPTRCASTCHECK_H

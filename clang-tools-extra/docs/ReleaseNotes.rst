@@ -136,8 +136,8 @@ New checks
   Finds unintended character output from ``unsigned char`` and ``signed char``
   to an ``ostream``.
 
-- New :doc:`bugprone-union-ptr-cast
-  <clang-tidy/checks/bugprone/union-ptr-cast>` check.
+- New :doc:`bugprone-record-ptr-cast
+  <clang-tidy/checks/bugprone/record-ptr-cast>` check.
 
   Checks implicit cast, C-style cast and ``reinterpret_cast`` expressions
   that convert a ``struct``, a ``class`` or a ``union`` pointer.

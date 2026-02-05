@@ -1,6 +1,6 @@
-// RUN: %check_clang_tidy %s bugprone-union-ptr-cast %t \
+// RUN: %check_clang_tidy %s bugprone-record-ptr-cast %t \
 // RUN:   --config='{CheckOptions: { \
-// RUN:     bugprone-union-ptr-cast.CompareCanonicalTypes: false \
+// RUN:     bugprone-record-ptr-cast.CompareCanonicalTypes: false \
 // RUN:  }}' --
 
 typedef short *ShortPtrTypedef;
