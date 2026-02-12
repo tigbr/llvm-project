@@ -57,11 +57,13 @@ class Environment {
 private:
   friend class EnvironmentManager;
 
-  using BindingsTy = llvm::ImmutableMap<EnvironmentEntry, SVal>;
+  using BindingsTy = llvm::ImmutableMap<const Stmt*, SVal>;
 
+  const Environment *Parent;
+  const StackFrameContext *StackFrame;
   BindingsTy ExprBindings;
 
-  Environment(BindingsTy eb) : ExprBindings(eb) {}
+  Environment(const Environment *Parent, const StackFrameContext *StackFrame, BindingsTy eb) : Parent{Parent}, StackFrame{StackFrame}, ExprBindings(eb) {}
 
   SVal lookupExpr(const EnvironmentEntry &E) const;
 
@@ -70,6 +72,9 @@ public:
 
   iterator begin() const { return ExprBindings.begin(); }
   iterator end() const { return ExprBindings.end(); }
+
+  const Environment* getParent() const;
+  const StackFrameContext* getStackFrameContext() const;
 
   /// Fetches the current binding of the expression in the
   /// Environment.
@@ -88,6 +93,7 @@ public:
   }
 
   bool operator==(const Environment& RHS) const {
+    // TODO_: Equality of Parent environment and StackFrameContext? 
     return ExprBindings == RHS.ExprBindings;
   }
 
@@ -105,12 +111,12 @@ private:
 public:
   EnvironmentManager(llvm::BumpPtrAllocator &Allocator) : F(Allocator) {}
 
-  Environment getInitialEnvironment() {
-    return Environment(F.getEmptyMap());
+  Environment getInitialEnvironment(const Environment *Parent, const StackFrameContext *StackFrame) {
+    return Environment(Parent, StackFrame, F.getEmptyMap());
   }
 
   /// Bind a symbolic value to the given environment entry.
-  Environment bindExpr(Environment Env, const EnvironmentEntry &E, SVal V,
+  Environment bindExpr(const Environment *Env, const EnvironmentEntry &E, SVal V,
                        bool Invalidate);
 
   Environment removeDeadBindings(Environment Env,

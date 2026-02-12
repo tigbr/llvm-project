@@ -76,12 +76,22 @@ EnvironmentEntry::EnvironmentEntry(const Stmt *S, const LocationContext *L)
                                              : nullptr) {}
 
 SVal Environment::lookupExpr(const EnvironmentEntry &E) const {
-  const SVal* X = ExprBindings.lookup(E);
-  if (X) {
-    SVal V = *X;
-    return V;
+  if (this->StackFrame == E.second) {
+    const SVal* X = ExprBindings.lookup(E.first);
+    if (X) {
+      SVal V = *X;
+      return V;
+    }
   }
   return UnknownVal();
+}
+
+const Environment* Environment::getParent() const {
+  return Parent;
+}
+
+const StackFrameContext* Environment::getStackFrameContext() const {
+  return StackFrame;
 }
 
 SVal Environment::getSVal(const EnvironmentEntry &Entry,
@@ -133,17 +143,27 @@ SVal Environment::getSVal(const EnvironmentEntry &Entry,
   }
 }
 
-Environment EnvironmentManager::bindExpr(Environment Env,
+// TODO_: What if the EnvironmentEntry's StackFrameContext is different from
+// the one in the Environment?
+// After one quick grep, bindExpr seems to be used by ProgramState.cpp in
+// the BindExpr (with capital B) method.
+Environment EnvironmentManager::bindExpr(const Environment *Env,
                                          const EnvironmentEntry &E,
                                          SVal V,
                                          bool Invalidate) {
+  // TODO_: Assuming that the StackFrameContext of E is the same as
+  // Env's StackFrameContext or perhaps its immediate descendant
+  const Environment *Parent = Env->Parent;
+  if (Env->getStackFrameContext() && Env->getStackFrameContext()->isParentOf(E.second))
+    Parent = Env;
+    
   if (V.isUnknown()) {
     if (Invalidate)
-      return Environment(F.remove(Env.ExprBindings, E));
+      return Environment(Parent, Env->getStackFrameContext() , F.remove(Env->ExprBindings, E.first));
     else
-      return Env;
+      return *Env;
   }
-  return Environment(F.add(Env.ExprBindings, E, V));
+  return Environment(Parent, Env->getStackFrameContext(), F.add(Env->ExprBindings, E.first, V));
 }
 
 namespace {
@@ -178,28 +198,35 @@ Environment
 EnvironmentManager::removeDeadBindings(Environment Env,
                                        SymbolReaper &SymReaper,
                                        ProgramStateRef ST) {
-  // We construct a new Environment object entirely, as this is cheaper than
-  // individually removing all the subexpression bindings (which will greatly
-  // outnumber block-level expression bindings).
-  Environment NewEnv = getInitialEnvironment();
+  // TODO_: What if this returns null?
+  const StackFrameContext *CurrentLocation = SymReaper.getLocationContext()->getStackFrame();
+  const StackFrameContext *NewStackFrame = Env.getStackFrameContext();
+  const Environment *NewParent = Env.getParent();
 
+  while (NewStackFrame && CurrentLocation->isParentOf(NewStackFrame)) {
+    // TODO_: Can NewStackFrame->getParent() ever not be a const StackFrameContext*?
+    NewStackFrame = llvm::dyn_cast<StackFrameContext>(NewStackFrame->getParent());
+    NewParent = NewParent->getParent();
+  }
+
+  Environment NewEnv = getInitialEnvironment(NewParent, NewStackFrame);
   MarkLiveCallback CB(SymReaper);
   ScanReachableSymbols RSScaner(ST, CB);
 
-  llvm::ImmutableMapRef<EnvironmentEntry, SVal>
+  llvm::ImmutableMapRef<const Stmt*, SVal>
     EBMapRef(NewEnv.ExprBindings.getRootWithoutRetain(),
              F.getTreeFactory());
 
   // Iterate over the block-expr bindings.
   for (Environment::iterator I = Env.begin(), End = Env.end(); I != End; ++I) {
-    const EnvironmentEntry &BlkExpr = I.getKey();
+    const Stmt *BlkExpr = I->first;
     SVal X = I.getData();
 
-    const Expr *E = dyn_cast<Expr>(BlkExpr.getStmt());
+    const Expr *E = dyn_cast<Expr>(BlkExpr);
     if (!E)
       continue;
 
-    if (SymReaper.isLive(E, BlkExpr.getLocationContext())) {
+    if (SymReaper.isLive(E, Env.getStackFrameContext())) {
       // Copy the binding to the new map.
       EBMapRef = EBMapRef.add(BlkExpr, X);
 
@@ -215,6 +242,7 @@ EnvironmentManager::removeDeadBindings(Environment Env,
 void Environment::printJson(raw_ostream &Out, const ASTContext &Ctx,
                             const LocationContext *LCtx, const char *NL,
                             unsigned int Space, bool IsDot) const {
+#if 0
   Indent(Out, Space, IsDot) << "\"environment\": ";
 
   if (ExprBindings.isEmpty()) {
@@ -295,4 +323,5 @@ void Environment::printJson(raw_ostream &Out, const ASTContext &Ctx,
   });
 
   Indent(Out, --Space, IsDot) << "]}," << NL;
+#endif
 }

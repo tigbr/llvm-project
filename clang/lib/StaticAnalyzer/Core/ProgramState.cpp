@@ -302,7 +302,7 @@ ProgramStateRef ProgramState::BindExpr(const Stmt *S,
                                            const LocationContext *LCtx,
                                            SVal V, bool Invalidate) const{
   Environment NewEnv =
-    getStateManager().EnvMgr.bindExpr(Env, EnvironmentEntry(S, LCtx), V,
+    getStateManager().EnvMgr.bindExpr(&Env, EnvironmentEntry(S, LCtx), V,
                                       Invalidate);
   if (NewEnv == Env)
     return this;
@@ -393,7 +393,7 @@ ConditionTruthVal ProgramState::isNull(SVal V) const {
 
 ProgramStateRef ProgramStateManager::getInitialState(const LocationContext *InitLoc) {
   ProgramState State(this,
-                EnvMgr.getInitialEnvironment(),
+                EnvMgr.getInitialEnvironment(nullptr, nullptr), // TODO_: Does an appropriate StackFrameContext even exist at this point?
                 StoreMgr->getInitialStore(InitLoc),
                 GDMFactory.getEmptyMap());
 
