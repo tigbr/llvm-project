@@ -159,7 +159,7 @@ Environment EnvironmentManager::bindExpr(const Environment *Env,
     
   if (V.isUnknown()) {
     if (Invalidate)
-      return Environment(Parent, Env->getStackFrameContext() , F.remove(Env->ExprBindings, E.first));
+      return Environment(Parent, Env->getStackFrameContext(), F.remove(Env->ExprBindings, E.first));
     else
       return *Env;
   }
@@ -199,11 +199,11 @@ EnvironmentManager::removeDeadBindings(Environment Env,
                                        SymbolReaper &SymReaper,
                                        ProgramStateRef ST) {
   // TODO_: What if this returns null?
-  const StackFrameContext *CurrentLocation = SymReaper.getLocationContext()->getStackFrame();
+  const StackFrameContext *CurrentStackFrame = SymReaper.getLocationContext()->getStackFrame();
   const StackFrameContext *NewStackFrame = Env.getStackFrameContext();
   const Environment *NewParent = Env.getParent();
 
-  while (NewStackFrame && CurrentLocation->isParentOf(NewStackFrame)) {
+  while (NewStackFrame && !NewStackFrame->inTopFrame() && CurrentStackFrame->isParentOf(NewStackFrame)) {
     // TODO_: Can NewStackFrame->getParent() ever not be a const StackFrameContext*?
     NewStackFrame = llvm::dyn_cast<StackFrameContext>(NewStackFrame->getParent());
     NewParent = NewParent->getParent();
