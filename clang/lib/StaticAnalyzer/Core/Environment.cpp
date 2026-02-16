@@ -76,12 +76,14 @@ EnvironmentEntry::EnvironmentEntry(const Stmt *S, const LocationContext *L)
                                              : nullptr) {}
 
 SVal Environment::lookupExpr(const EnvironmentEntry &E) const {
-  if (this->StackFrame == E.second) {
-    const SVal* X = ExprBindings.lookup(E.first);
-    if (X) {
-      SVal V = *X;
-      return V;
-    }
+  const Environment *ES = this;
+  while (ES->Parent && E.second->isParentOf(ES->StackFrame)) {
+    ES = ES->Parent;
+  }
+  const SVal* X = ES->ExprBindings.lookup(E.first);
+  if (X) {
+    SVal V = *X;
+    return V;
   }
   return UnknownVal();
 }

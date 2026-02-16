@@ -94,7 +94,7 @@ public:
 
   bool operator==(const Environment& RHS) const {
     // TODO_: Equality of Parent environment and StackFrameContext? 
-    return ExprBindings == RHS.ExprBindings;
+    return StackFrame == RHS.StackFrame && ExprBindings == RHS.ExprBindings;
   }
 
   void printJson(raw_ostream &Out, const ASTContext &Ctx,
