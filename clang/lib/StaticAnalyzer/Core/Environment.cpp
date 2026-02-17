@@ -244,7 +244,7 @@ EnvironmentManager::removeDeadBindings(Environment Env,
 void Environment::printJson(raw_ostream &Out, const ASTContext &Ctx,
                             const LocationContext *LCtx, const char *NL,
                             unsigned int Space, bool IsDot) const {
-#if 0
+#if 1
   Indent(Out, Space, IsDot) << "\"environment\": ";
 
   if (ExprBindings.isEmpty()) {
@@ -257,7 +257,7 @@ void Environment::printJson(raw_ostream &Out, const ASTContext &Ctx,
     // Find the freshest location context.
     llvm::SmallPtrSet<const LocationContext *, 16> FoundContexts;
     for (const auto &I : *this) {
-      const LocationContext *LC = I.first.getLocationContext();
+      const LocationContext *LC = StackFrame;
       if (FoundContexts.count(LC) == 0) {
         // This context is fresher than all other contexts so far.
         LCtx = LC;
@@ -282,7 +282,7 @@ void Environment::printJson(raw_ostream &Out, const ASTContext &Ctx,
     BindingsTy::iterator LastI = ExprBindings.end();
     for (BindingsTy::iterator I = ExprBindings.begin(); I != ExprBindings.end();
          ++I) {
-      if (I->first.getLocationContext() != LC)
+      if (StackFrame != LC)
         continue;
 
       if (!HasItem) {
@@ -290,7 +290,7 @@ void Environment::printJson(raw_ostream &Out, const ASTContext &Ctx,
         Out << '[' << NL;
       }
 
-      const Stmt *S = I->first.getStmt();
+      const Stmt *S = I->first;
       (void)S;
       assert(S != nullptr && "Expected non-null Stmt");
 
@@ -299,10 +299,10 @@ void Environment::printJson(raw_ostream &Out, const ASTContext &Ctx,
 
     for (BindingsTy::iterator I = ExprBindings.begin(); I != ExprBindings.end();
          ++I) {
-      if (I->first.getLocationContext() != LC)
+      if (StackFrame != LC)
         continue;
 
-      const Stmt *S = I->first.getStmt();
+      const Stmt *S = I->first;
       Indent(Out, InnerSpace, IsDot)
           << "{ \"stmt_id\": " << S->getID(Ctx) << ", \"kind\": \""
           << S->getStmtClassName() << "\", \"pretty\": ";
