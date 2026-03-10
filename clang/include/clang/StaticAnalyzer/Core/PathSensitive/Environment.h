@@ -60,10 +60,10 @@ private:
   using BindingsTy = llvm::ImmutableMap<const Stmt*, SVal>;
 
   const Environment *Parent;
-  const StackFrameContext *StackFrame;
+  const LocationContext *Location;
   BindingsTy ExprBindings;
 
-  Environment(const Environment *Parent, const StackFrameContext *StackFrame, BindingsTy eb) : Parent{Parent}, StackFrame{StackFrame}, ExprBindings(eb) {}
+  Environment(const Environment *Parent, const LocationContext *Location, BindingsTy eb) : Parent{Parent}, Location{Location}, ExprBindings(eb) {}
 
   SVal lookupExpr(const EnvironmentEntry &E) const;
 
@@ -74,7 +74,7 @@ public:
   iterator end() const { return ExprBindings.end(); }
 
   const Environment* getParent() const;
-  const StackFrameContext* getStackFrameContext() const;
+  const LocationContext* getLocationContext() const;
 
   /// Fetches the current binding of the expression in the
   /// Environment.
@@ -93,8 +93,8 @@ public:
   }
 
   bool operator==(const Environment& RHS) const {
-    // TODO_: Equality of Parent environment and StackFrameContext? 
-    return StackFrame == RHS.StackFrame && ExprBindings == RHS.ExprBindings;
+    // TODO_: Equality of Ancestor environments?
+    return Location == RHS.Location && ExprBindings == RHS.ExprBindings && this->Parent == RHS.Parent;
   }
 
   void printJson(raw_ostream &Out, const ASTContext &Ctx,
@@ -111,8 +111,8 @@ private:
 public:
   EnvironmentManager(llvm::BumpPtrAllocator &Allocator) : F(Allocator) {}
 
-  Environment getInitialEnvironment(const Environment *Parent, const StackFrameContext *StackFrame) {
-    return Environment(Parent, StackFrame, F.getEmptyMap());
+  Environment getInitialEnvironment(const Environment *Parent, const LocationContext *Location) {
+    return Environment(Parent, Location, F.getEmptyMap());
   }
 
   /// Bind a symbolic value to the given environment entry.

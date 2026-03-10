@@ -394,7 +394,7 @@ ConditionTruthVal ProgramState::isNull(SVal V) const {
 ProgramStateRef ProgramStateManager::getInitialState(const LocationContext *InitLoc) {
   // TODO_: This InitLoc seems to be a StackFrameContext, coming from Frontend/AnalysisConsumer.cpp
   ProgramState State(this,
-                EnvMgr.getInitialEnvironment(nullptr, dyn_cast<StackFrameContext>(InitLoc)),
+                EnvMgr.getInitialEnvironment(nullptr, InitLoc),
                 StoreMgr->getInitialStore(InitLoc),
                 GDMFactory.getEmptyMap());
 

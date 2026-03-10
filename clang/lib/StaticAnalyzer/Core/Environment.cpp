@@ -77,7 +77,7 @@ EnvironmentEntry::EnvironmentEntry(const Stmt *S, const LocationContext *L)
 
 SVal Environment::lookupExpr(const EnvironmentEntry &E) const {
   const Environment *ES = this;
-  while (ES->Parent && E.second->isParentOf(ES->StackFrame)) {
+  while (ES->Parent && E.second->isParentOf(ES->Location)) {
     ES = ES->Parent;
   }
   const SVal* X = ES->ExprBindings.lookup(E.first);
@@ -92,8 +92,8 @@ const Environment* Environment::getParent() const {
   return Parent;
 }
 
-const StackFrameContext* Environment::getStackFrameContext() const {
-  return StackFrame;
+const LocationContext* Environment::getLocationContext() const {
+  return Location;
 }
 
 SVal Environment::getSVal(const EnvironmentEntry &Entry,
@@ -153,19 +153,24 @@ Environment EnvironmentManager::bindExpr(const Environment *Env,
                                          const EnvironmentEntry &E,
                                          SVal V,
                                          bool Invalidate) {
+  // assert(!(Env->getLocationContext() && E.second->isParentOf(Env->getLocationContext())));
   // TODO_: Assuming that the StackFrameContext of E is the same as
   // Env's StackFrameContext or perhaps its immediate descendant
-  const Environment *Parent = Env->Parent;
-  if (Env->getStackFrameContext() && Env->getStackFrameContext()->isParentOf(E.second))
-    Parent = Env;
+  // const Environment *Parent = Env->Parent;
+  // if (Env->getLocationContext() && Env->getLocationContext()->isParentOf(E.second))
+  //   Parent = Env;
     
   if (V.isUnknown()) {
     if (Invalidate)
-      return Environment(Parent, Env->getStackFrameContext(), F.remove(Env->ExprBindings, E.first));
+      return Environment(Env->Parent, Env->getLocationContext(), F.remove(Env->ExprBindings, E.first));
     else
       return *Env;
   }
-  return Environment(Parent, Env->getStackFrameContext(), F.add(Env->ExprBindings, E.first, V));
+  if (Env->getLocationContext() == E.second || E.second->isParentOf(Env->getLocationContext())) {
+    return Environment(Env->Parent, Env->getLocationContext(), F.add(Env->ExprBindings, E.first, V));
+  } else {
+    return Environment(Env, E.second, F.add(F.getEmptyMap(), E.first, V));
+  }
 }
 
 namespace {
@@ -201,13 +206,12 @@ EnvironmentManager::removeDeadBindings(Environment Env,
                                        SymbolReaper &SymReaper,
                                        ProgramStateRef ST) {
   // TODO_: What if this returns null?
-  const StackFrameContext *CurrentStackFrame = SymReaper.getLocationContext()->getStackFrame();
-  const StackFrameContext *NewStackFrame = Env.getStackFrameContext();
+  const LocationContext *CurrentStackFrame = SymReaper.getLocationContext();
+  const LocationContext *NewStackFrame = Env.getLocationContext();
   const Environment *NewParent = Env.getParent();
 
   while (NewStackFrame && !NewStackFrame->inTopFrame() && CurrentStackFrame->isParentOf(NewStackFrame)) {
-    // TODO_: Can NewStackFrame->getParent() ever not be a const StackFrameContext*?
-    NewStackFrame = llvm::dyn_cast<StackFrameContext>(NewStackFrame->getParent());
+    NewStackFrame = NewStackFrame->getParent();
     NewParent = NewParent->getParent();
   }
 
@@ -220,22 +224,24 @@ EnvironmentManager::removeDeadBindings(Environment Env,
              F.getTreeFactory());
 
   // Iterate over the block-expr bindings.
-  for (Environment::iterator I = Env.begin(), End = Env.end(); I != End; ++I) {
-    const Stmt *BlkExpr = I->first;
-    SVal X = I.getData();
+  // for (const Environment *CurrentEnv = &Env; CurrentEnv && NewParent != CurrentEnv->getParent(); CurrentEnv = CurrentEnv->getParent()) {
+    for (Environment::iterator I = Env.begin(), End = Env.end(); I != End; ++I) {
+      const Stmt *BlkExpr = I->first;
+      SVal X = I.getData();
 
-    const Expr *E = dyn_cast<Expr>(BlkExpr);
-    if (!E)
-      continue;
+      const Expr *E = dyn_cast<Expr>(BlkExpr);
+      if (!E)
+        continue;
 
-    if (SymReaper.isLive(E, Env.getStackFrameContext())) {
-      // Copy the binding to the new map.
-      EBMapRef = EBMapRef.add(BlkExpr, X);
+      if (SymReaper.isLive(E, Env.getLocationContext())) {
+        // Copy the binding to the new map.
+        EBMapRef = EBMapRef.add(BlkExpr, X);
 
-      // Mark all symbols in the block expr's value live.
-      RSScaner.scan(X);
+        // Mark all symbols in the block expr's value live.
+        RSScaner.scan(X);
+      }
     }
-  }
+  // }
 
   NewEnv.ExprBindings = EBMapRef.asImmutableMap();
   return NewEnv;
@@ -257,7 +263,7 @@ void Environment::printJson(raw_ostream &Out, const ASTContext &Ctx,
     // Find the freshest location context.
     llvm::SmallPtrSet<const LocationContext *, 16> FoundContexts;
     for (const auto &I : *this) {
-      const LocationContext *LC = StackFrame;
+      const LocationContext *LC = this->Location;
       if (FoundContexts.count(LC) == 0) {
         // This context is fresher than all other contexts so far.
         LCtx = LC;
@@ -282,7 +288,7 @@ void Environment::printJson(raw_ostream &Out, const ASTContext &Ctx,
     BindingsTy::iterator LastI = ExprBindings.end();
     for (BindingsTy::iterator I = ExprBindings.begin(); I != ExprBindings.end();
          ++I) {
-      if (StackFrame != LC)
+      if (this->Location != LC)
         continue;
 
       if (!HasItem) {
@@ -299,7 +305,7 @@ void Environment::printJson(raw_ostream &Out, const ASTContext &Ctx,
 
     for (BindingsTy::iterator I = ExprBindings.begin(); I != ExprBindings.end();
          ++I) {
-      if (StackFrame != LC)
+      if (this->Location != LC)
         continue;
 
       const Stmt *S = I->first;
