@@ -348,7 +348,19 @@ void Environment::printJson(raw_ostream &Out, EnvironmentManager &EnvMgr, const 
 #if 1
   Indent(Out, Space, IsDot) << "\"environment\": ";
 
-  if (ExprBindings.isEmpty()) {
+  Layer layer{EnvMgr.Layers[BottomLayerIndex]};
+  const LocationContext *Location = BottomLocation;
+  bool hasNoBindings = true;
+  while (Location && hasNoBindings) {
+    if (layer.ExprBindings.isEmpty()) {
+      hasNoBindings = false;
+    } else {
+      Location = Location->getParent();
+      layer = EnvMgr.Layers[layer.ParentLayerIndex];
+    }
+  }
+
+  if (hasNoBindings) {
     Out << "null," << NL;
     return;
   }
@@ -376,19 +388,27 @@ void Environment::printJson(raw_ostream &Out, EnvironmentManager &EnvMgr, const 
       << "\", \"items\": [" << NL;
   PrintingPolicy PP = Ctx.getPrintingPolicy();
 
-  unsigned layer_index = BottomLayerIndex;
-
   LCtx->printJson(Out, NL, Space, IsDot, [&](const LocationContext *LC) {
     // LCtx items begin
     bool HasItem = false;
     unsigned int InnerSpace = Space + 1;
 
     // Store the last ExprBinding which we will print.
-    auto &ExprBindings = EnvMgr.Layers[layer_index];
+    Layer layer{EnvMgr.Layers[BottomLayerIndex]};
+    const LocationContext *Location = BottomLocation;
+    while (Location != LC) {
+      layer = EnvMgr.Layers[layer.ParentLayerIndex];
+      Location = Location->getParent();
+    }
+    auto &ExprBindings = layer.ExprBindings;
+    using BindingsTy = llvm::ImmutableMap<const Stmt*, SVal>;
     BindingsTy::iterator LastI = ExprBindings.end();
+
     for (BindingsTy::iterator I = ExprBindings.begin(); I != ExprBindings.end(); ++I) {
+#if 0
       if (StackFrame != LC)
         continue;
+#endif
 
       if (!HasItem) {
         HasItem = true;
@@ -402,10 +422,7 @@ void Environment::printJson(raw_ostream &Out, EnvironmentManager &EnvMgr, const 
       LastI = I;
     }
 
-    for (BindingsTy::iterator I = ExprBindings.begin(); I != ExprBindings.end();
-         ++I) {
-      if (StackFrame != LC)
-        continue;
+    for (BindingsTy::iterator I = ExprBindings.begin(); I != ExprBindings.end(); ++I) {
 
       const Stmt *S = I->first;
       Indent(Out, InnerSpace, IsDot)

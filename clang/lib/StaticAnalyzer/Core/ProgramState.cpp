@@ -129,6 +129,9 @@ ProgramStateRef
 ProgramState::bindDefaultInitial(SVal loc, SVal V,
                                  const LocationContext *LCtx) const {
   ProgramStateManager &Mgr = getStateManager();
+  llvm::errs() << "bindDefaultInitial loc = ";
+  loc.dump();
+  llvm::errs() << "\n";
   const MemRegion *R = loc.castAs<loc::MemRegionVal>().getRegion();
   BindResult BindRes = Mgr.StoreMgr->BindDefaultInitial(getStore(), R, V);
   ProgramStateRef State = makeWithStore(BindRes);
