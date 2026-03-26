@@ -165,7 +165,7 @@ bool isSimpleComparisonOperator(BinaryOperatorKind OK);
 ProgramStateRef removeIteratorPosition(ProgramStateRef State, SVal Val);
 ProgramStateRef relateSymbols(ProgramStateRef State, SymbolRef Sym1,
                               SymbolRef Sym2, bool Equal);
-bool isBoundThroughLazyCompoundVal(const Environment &Env,
+bool isBoundThroughLazyCompoundVal(const EnvironmentManager *EnvMgr, const Environment &Env,
                                    const MemRegion *Reg);
 const ExplodedNode *findCallEnter(const ExplodedNode *Node, const Expr *Call);
 
@@ -331,7 +331,7 @@ void IteratorModeling::checkDeadSymbols(SymbolReaper &SR,
       // The region behind the `LazyCompoundVal` is often cleaned up before
       // the `LazyCompoundVal` itself. If there are iterator positions keyed
       // by these regions their cleanup must be deferred.
-      if (!isBoundThroughLazyCompoundVal(State->getEnvironment(), Reg.first)) {
+      if (!isBoundThroughLazyCompoundVal(&State->getStateManager().getEnvironmentManager(), State->getEnvironment(), Reg.first)) {
         State = State->remove<IteratorRegionMap>(Reg.first);
       }
     }
@@ -822,10 +822,10 @@ ProgramStateRef relateSymbols(ProgramStateRef State, SymbolRef Sym1,
   return NewState;
 }
 
-bool isBoundThroughLazyCompoundVal(const Environment &Env,
+bool isBoundThroughLazyCompoundVal(const EnvironmentManager *EnvMgr, const Environment &Env,
                                    const MemRegion *Reg) {
-  for (const auto &Binding : Env) {
-    if (const auto LCVal = Binding.second.getAs<nonloc::LazyCompoundVal>()) {
+  for (Environment::iterator Binding = Env.begin(EnvMgr); Binding != Env.end(EnvMgr); ++Binding) {
+    if (const auto LCVal = (*Binding).second.getAs<nonloc::LazyCompoundVal>()) {
       if (LCVal->getRegion() == Reg)
         return true;
     }

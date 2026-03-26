@@ -571,6 +571,8 @@ public:
 
   CallEventManager &getCallEventManager() { return *CallEventMgr; }
 
+  EnvironmentManager &getEnvironmentManager() { return EnvMgr; }
+  const EnvironmentManager &getEnvironmentManager() const { return EnvMgr; }
   StoreManager &getStoreManager() { return *StoreMgr; }
   const StoreManager &getStoreManager() const { return *StoreMgr; }
   ConstraintManager &getConstraintManager() { return *ConstraintMgr; }
@@ -789,7 +791,7 @@ inline SVal ProgramState::getLValue(QualType ElementType, SVal Idx, SVal Base) c
 
 inline SVal ProgramState::getSVal(const Stmt *Ex,
                                   const LocationContext *LCtx) const{
-  return Env.getSVal(EnvironmentEntry(Ex, LCtx),
+  return Env.getSVal(stateMgr->getEnvironmentManager(), EnvironmentEntry(Ex, LCtx),
                      *getStateManager().svalBuilder);
 }
 

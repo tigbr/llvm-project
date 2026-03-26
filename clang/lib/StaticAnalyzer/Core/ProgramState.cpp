@@ -392,9 +392,8 @@ ConditionTruthVal ProgramState::isNull(SVal V) const {
 }
 
 ProgramStateRef ProgramStateManager::getInitialState(const LocationContext *InitLoc) {
-  // TODO_: This InitLoc seems to be a StackFrameContext, coming from Frontend/AnalysisConsumer.cpp
   ProgramState State(this,
-                EnvMgr.getInitialEnvironment(nullptr, dyn_cast<StackFrameContext>(InitLoc)),
+                EnvMgr.getInitialEnvironment(InitLoc),
                 StoreMgr->getInitialStore(InitLoc),
                 GDMFactory.getEmptyMap());
 
@@ -500,7 +499,7 @@ void ProgramState::printJson(raw_ostream &Out, const LocationContext *LCtx,
   Mgr.getStoreManager().printJson(Out, getStore(), NL, Space, IsDot);
 
   // Print out the environment.
-  Env.printJson(Out, Mgr.getContext(), LCtx, NL, Space, IsDot);
+  Env.printJson(Out, stateMgr->getEnvironmentManager(), Mgr.getContext(), LCtx, NL, Space, IsDot);
 
   // Print out the constraints.
   Mgr.getConstraintManager().printJson(Out, this, NL, Space, IsDot);
