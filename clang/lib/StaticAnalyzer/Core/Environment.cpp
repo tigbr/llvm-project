@@ -171,15 +171,8 @@ Environment EnvironmentManager::bindExpr(const Environment *Env,
     while (Location) {
       if (Location == E.second) {
         Layer OldLayer{Layers[LayerIndex]};
-        Layer NewLayer{BindingsFactory.remove(OldLayer.ExprBindings, E.first), OldLayer.ParentLayerIndex};
-        const unsigned *UpdatedLayerIndex = IndexOf.lookup(NewLayer);
-        if (UpdatedLayerIndex) {
-          return Environment(*UpdatedLayerIndex, Env->getLocationContext());
-        } else {
-          Layers.push_back(NewLayer);
-          IndexOf = LayerFactory.add(IndexOf, NewLayer, Layers.size() - 1);
-          return Environment(Layers.size()-1, Env->getLocationContext());
-        }
+        Layer NewLayer{BindingsFactory.add(OldLayer.ExprBindings, E.first, V), OldLayer.ParentLayerIndex};
+        return Environment(saveLayer(NewLayer), Env->getLocationContext());
       }
       Location = Location->getParent();
     }
@@ -345,18 +338,18 @@ EnvironmentManager::removeDeadBindings(Environment Env,
 void Environment::printJson(raw_ostream &Out, EnvironmentManager &EnvMgr, const ASTContext &Ctx,
                             const LocationContext *LCtx, const char *NL,
                             unsigned int Space, bool IsDot) const {
-#if 1
+#if 0
   Indent(Out, Space, IsDot) << "\"environment\": ";
 
   Layer layer{EnvMgr.Layers[BottomLayerIndex]};
-  const LocationContext *Location = BottomLocation;
+  const LocationContext *L = BottomLocation;
   bool hasNoBindings = true;
-  while (Location && hasNoBindings) {
+  while (L && hasNoBindings) {
     if (layer.ExprBindings.isEmpty()) {
-      hasNoBindings = false;
-    } else {
-      Location = Location->getParent();
+      L = L->getParent();
       layer = EnvMgr.Layers[layer.ParentLayerIndex];
+    } else {
+      hasNoBindings = false;
     }
   }
 
@@ -399,16 +392,16 @@ void Environment::printJson(raw_ostream &Out, EnvironmentManager &EnvMgr, const 
     while (Location != LC) {
       layer = EnvMgr.Layers[layer.ParentLayerIndex];
       Location = Location->getParent();
+      if (Location == nullptr) return;
     }
     auto &ExprBindings = layer.ExprBindings;
     using BindingsTy = llvm::ImmutableMap<const Stmt*, SVal>;
     BindingsTy::iterator LastI = ExprBindings.end();
 
-    for (BindingsTy::iterator I = ExprBindings.begin(); I != ExprBindings.end(); ++I) {
 #if 0
+    for (BindingsTy::iterator I = ExprBindings.begin(); I != ExprBindings.end(); ++I) {
       if (StackFrame != LC)
         continue;
-#endif
 
       if (!HasItem) {
         HasItem = true;
@@ -421,6 +414,7 @@ void Environment::printJson(raw_ostream &Out, EnvironmentManager &EnvMgr, const 
 
       LastI = I;
     }
+#endif
 
     for (BindingsTy::iterator I = ExprBindings.begin(); I != ExprBindings.end(); ++I) {
 

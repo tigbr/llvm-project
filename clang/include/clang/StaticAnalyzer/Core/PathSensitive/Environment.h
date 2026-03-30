@@ -94,7 +94,9 @@ private:
   }
 
 public:
-  EnvironmentManager(llvm::BumpPtrAllocator &Allocator) : LayerFactory(Allocator), BindingsFactory(Allocator), IndexOf(LayerFactory.getEmptyMap()), Layers{{BindingsFactory.getEmptyMap(), 0}} {}
+  EnvironmentManager(llvm::BumpPtrAllocator &Allocator) : LayerFactory(Allocator), BindingsFactory(Allocator), IndexOf{LayerFactory.getEmptyMap()} {
+    saveLayer(Layer{BindingsFactory.getEmptyMap(), 0});
+  }
 
   inline Environment getInitialEnvironment(const LocationContext *Location);
 
@@ -153,14 +155,13 @@ public:
     iterator2<const Stmt*, SVal> BindingsIterator;
     iterator2<const Stmt*, SVal> BindingsEnd;
 
-    iterator(const clang::ento::EnvironmentManager*&, const clang::LocationContext* const&, const unsigned int&, llvm::ImmutableMap<const clang::Stmt*, clang::ento::SVal>::iterator, const unsigned int&, llvm::ImmutableMap<const clang::Stmt*, clang::ento::SVal>::iterator)
+    iterator(const clang::ento::EnvironmentManager* EnvMgr, const clang::LocationContext* const BottomLocation, const unsigned int BottomLayerIndex, llvm::ImmutableMap<const clang::Stmt*, clang::ento::SVal>::iterator BindingsIt, const unsigned int&, llvm::ImmutableMap<const clang::Stmt*, clang::ento::SVal>::iterator BindingsEnd)
     // iterator(
     //   const EnvironmentManager *EnvMgr,
     //   const LocationContext *BottomLocation,
     //   unsigned BottomLayerIndex,
-    //   llvm::ImmutableMap<const Stmt*, SVal>::iterator BindingsIterator,
-    //   llvm::ImmutableMap<const Stmt*, SVal>::iterator BindingsEnd)
-    : EnvMgr{EnvMgr}, BottomLocation{BottomLocation}, BottomLayerIndex{BottomLayerIndex}, BindingsIterator{BindingsIterator}, BindingsEnd{BindingsEnd} { }
+    //   llvm::ImmutableMap<const Stmt*, SVal>::iterator BindingsIterator, //   llvm::ImmutableMap<const Stmt*, SVal>::iterator BindingsEnd)
+    : EnvMgr{EnvMgr}, BottomLocation{BottomLocation}, BottomLayerIndex{BottomLayerIndex}, BindingsIterator{BindingsIt}, BindingsEnd{BindingsEnd} { }
 
     bool operator!=(const struct iterator &other) {
       return !this->operator==(other);
