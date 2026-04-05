@@ -167,16 +167,9 @@ Environment EnvironmentManager::bindExpr(const Environment *Env,
       }
     }
     unsigned LayerIndex = Env->BottomLayerIndex;
-    const LocationContext *Location = Env->BottomLocation;
-    while (Location) {
-      if (Location == E.second) {
-        Layer OldLayer{Layers[LayerIndex]};
-        Layer NewLayer{BindingsFactory.add(OldLayer.ExprBindings, E.first, V), OldLayer.ParentLayerIndex};
-        return Environment(saveLayer(NewLayer), Env->getLocationContext());
-      }
-      Location = Location->getParent();
-    }
-    assert(false && "jaj");
+    Layer OldLayer{Layers[LayerIndex]};
+    Layer NewLayer{BindingsFactory.add(OldLayer.ExprBindings, E.first, V), OldLayer.ParentLayerIndex};
+    return Environment(saveLayer(NewLayer), Env->getLocationContext());
   } else if (E.second->isParentOf(Env->getLocationContext())) {
 
     std::vector<Layer> NewLayers;
@@ -191,10 +184,10 @@ Environment EnvironmentManager::bindExpr(const Environment *Env,
     Layer OldLayer{Layers[LayerIndex]};
     if (V.isUnknown()) {
       if (Invalidate) {
-        NewLayers.back() = Layer{BindingsFactory.remove(OldLayer.ExprBindings, E.first), OldLayer.ParentLayerIndex};
+        NewLayers.push_back(Layer{BindingsFactory.remove(OldLayer.ExprBindings, E.first), OldLayer.ParentLayerIndex});
       }
     } else {
-      NewLayers.back() = Layer{BindingsFactory.add(OldLayer.ExprBindings, E.first, V), OldLayer.ParentLayerIndex};
+      NewLayers.push_back(Layer{BindingsFactory.add(OldLayer.ExprBindings, E.first, V), OldLayer.ParentLayerIndex});
     }
 
     for (int i = NewLayers.size() - 1; i > 0; i -= 1) {
@@ -202,16 +195,18 @@ Environment EnvironmentManager::bindExpr(const Environment *Env,
     }
 
     return Environment(saveLayer(NewLayers[0]), Env->getLocationContext());
+  } else if (Env->getLocationContext() == E.second->getParent()) {
+	Layer layer{BindingsFactory.add(BindingsFactory.getEmptyMap(), E.first, V), Env->BottomLayerIndex};
+    return Environment(saveLayer(layer), E.second);
   } else {
-
     const LocationContext *Location1 = Env->getLocationContext();
+    unsigned LayerIndex = Layers[Env->BottomLayerIndex].ParentLayerIndex;
     while (Location1) {
       if (Location1->isParentOf(E.second)) {
         std::vector<Layer> NewLayers{Layer{BindingsFactory.add(BindingsFactory.getEmptyMap(), E.first, V), Env->BottomLayerIndex}};
 
-        unsigned LayerIndex = Layers[Env->BottomLayerIndex].ParentLayerIndex;
         const LocationContext *Location = E.second->getParent();
-        while (Location != Env->getLocationContext()) {
+        while (Location != Location1) {
           NewLayers.push_back(Layer{BindingsFactory.getEmptyMap(), 0});
           LayerIndex = Layers[LayerIndex].ParentLayerIndex;
           Location = Location->getParent();
@@ -224,6 +219,7 @@ Environment EnvironmentManager::bindExpr(const Environment *Env,
 
         return Environment(saveLayer(NewLayers[0]), E.second);
       }
+      LayerIndex = Layers[LayerIndex].ParentLayerIndex;
       Location1 = Location1->getParent();
     }
 
@@ -280,7 +276,7 @@ EnvironmentManager::removeDeadBindings(Environment Env,
 
   Layer OldLayer = BaseLayer;
   std::vector<Layer> NewLayers;
-  for (const LocationContext *it = NewStackFrame; it; it = it->getParent(), OldLayer = Layers[OldLayer.ParentLayerIndex]) {
+  for (const LocationContext *location = NewStackFrame; location; location = location->getParent(), OldLayer = Layers[OldLayer.ParentLayerIndex]) {
     NewLayers.push_back({BindingsFactory.getEmptyMap(), OldLayer.ParentLayerIndex});
     llvm::ImmutableMapRef<const Stmt*, SVal> EBMapRef(NewLayers.back().ExprBindings.getRootWithoutRetain(), BindingsFactory.getTreeFactory());
     for (auto it = OldLayer.ExprBindings.begin(); it != OldLayer.ExprBindings.end(); it++) {
@@ -288,7 +284,7 @@ EnvironmentManager::removeDeadBindings(Environment Env,
       SVal X = it.getData();
 
       const Expr *E = dyn_cast<Expr>(BlkExpr);
-      if (E && SymReaper.isLive(E, Env.getLocationContext())) {
+      if (E && SymReaper.isLive(E, location)) {
         // Keep the binding
         // Mark all symbols in the block expr's value live.
         RSScaner.scan(X);
