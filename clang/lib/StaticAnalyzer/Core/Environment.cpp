@@ -200,7 +200,7 @@ Environment EnvironmentManager::bindExpr(const Environment *Env,
     return Environment(saveLayer(layer), E.second);
   } else {
     const LocationContext *Location1 = Env->getLocationContext();
-    unsigned LayerIndex = Layers[Env->BottomLayerIndex].ParentLayerIndex;
+    unsigned LayerIndex = Env->BottomLayerIndex;
     while (Location1) {
       if (Location1->isParentOf(E.second)) {
         std::vector<Layer> NewLayers{Layer{BindingsFactory.add(BindingsFactory.getEmptyMap(), E.first, V), Env->BottomLayerIndex}};
@@ -208,7 +208,6 @@ Environment EnvironmentManager::bindExpr(const Environment *Env,
         const LocationContext *Location = E.second->getParent();
         while (Location != Location1) {
           NewLayers.push_back(Layer{BindingsFactory.getEmptyMap(), 0});
-          LayerIndex = Layers[LayerIndex].ParentLayerIndex;
           Location = Location->getParent();
         }
 

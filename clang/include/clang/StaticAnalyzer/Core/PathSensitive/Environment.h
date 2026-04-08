@@ -109,30 +109,6 @@ public:
                                  ProgramStateRef state);
 };
 
-template <typename T1, typename T2>
-struct iterator2 : public llvm::ImmutableMap<T1, T2>::iterator {
-
-  iterator2(const typename llvm::ImmutableMap<T1, T2>::iterator& other) : llvm::ImmutableMap<T1, T2>::iterator{other} { }
-  iterator2(const iterator2& other) : llvm::ImmutableMap<T1, T2>::iterator{other} { }
-
-  void operator=(const iterator2& other) {
-  }
-
-  void operator=(const typename llvm::ImmutableMap<T1, T2>::iterator& other) {
-    *this = iterator2(other);
-  }
-
-#if 0
-  bool operator==(const iterator2& other) {
-    return llvm::ImmutableMap<T1, T2>::iterator::operator==(other);
-  }
-
-  iterator2 operator++(int) {
-    return llvm::ImmutableMap<T1, T2>::iterator::operator++();
-  }
-#endif
-};
-
 /// An immutable map from EnvironemntEntries to SVals.
 class Environment {
 private:
@@ -152,15 +128,10 @@ public:
     const EnvironmentManager *EnvMgr;
     const LocationContext *BottomLocation;
 	unsigned BottomLayerIndex;
-    iterator2<const Stmt*, SVal> BindingsIterator;
-    iterator2<const Stmt*, SVal> BindingsEnd;
+    llvm::ImmutableMap<const Stmt*, SVal>::iterator BindingsIterator;
+    llvm::ImmutableMap<const Stmt*, SVal>::iterator BindingsEnd;
 
     iterator(const clang::ento::EnvironmentManager* EnvMgr, const clang::LocationContext* const BottomLocation, const unsigned int BottomLayerIndex, llvm::ImmutableMap<const clang::Stmt*, clang::ento::SVal>::iterator BindingsIt, const unsigned int&, llvm::ImmutableMap<const clang::Stmt*, clang::ento::SVal>::iterator BindingsEnd)
-    // iterator(
-    //   const EnvironmentManager *EnvMgr,
-    //   const LocationContext *BottomLocation,
-    //   unsigned BottomLayerIndex,
-    //   llvm::ImmutableMap<const Stmt*, SVal>::iterator BindingsIterator, //   llvm::ImmutableMap<const Stmt*, SVal>::iterator BindingsEnd)
     : EnvMgr{EnvMgr}, BottomLocation{BottomLocation}, BottomLayerIndex{BottomLayerIndex}, BindingsIterator{BindingsIt}, BindingsEnd{BindingsEnd} { }
 
     bool operator!=(const struct iterator &other) {
@@ -178,18 +149,22 @@ public:
     iterator operator++() {
       if (BindingsIterator != BindingsEnd) {
         BindingsIterator++;
-      } else if (BottomLocation->getParent()) {
+      }
+      while (BindingsIterator == BindingsEnd && BottomLocation->getParent()) {
         BottomLocation = BottomLocation->getParent();
         BottomLayerIndex = EnvMgr->Layers[BottomLayerIndex].ParentLayerIndex;
         BindingsIterator = EnvMgr->Layers[BottomLayerIndex].ExprBindings.begin();
         BindingsEnd = EnvMgr->Layers[BottomLayerIndex].ExprBindings.end();
+      }
+      if (BindingsIterator == BindingsEnd) {
+        *this = iterator(EnvMgr, nullptr, 0, EnvMgr->Layers[0].ExprBindings.end(), 0, EnvMgr->Layers[0].ExprBindings.end());
       }
       return *this;
     }
   };
 
   iterator begin(const EnvironmentManager *EnvMgr) const { return iterator(EnvMgr, BottomLocation, BottomLayerIndex, EnvMgr->Layers[BottomLayerIndex].ExprBindings.begin(), BottomLayerIndex, EnvMgr->Layers[BottomLayerIndex].ExprBindings.end()); }
-  iterator end(const EnvironmentManager *EnvMgr) const { return iterator(EnvMgr, nullptr, 0, EnvMgr->Layers[BottomLayerIndex].ExprBindings.end(), BottomLayerIndex, EnvMgr->Layers[BottomLayerIndex].ExprBindings.end()); }
+  iterator end(const EnvironmentManager *EnvMgr) const { return iterator(EnvMgr, nullptr, 0, EnvMgr->Layers[0].ExprBindings.end(), 0, EnvMgr->Layers[0].ExprBindings.end()); }
 #endif
 
   const LocationContext* getLocationContext() const;
