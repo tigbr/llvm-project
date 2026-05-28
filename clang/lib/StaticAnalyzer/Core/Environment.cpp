@@ -63,17 +63,9 @@ static const Expr *ignoreTransparentExprs(const Expr *E) {
   return ignoreTransparentExprs(E);
 }
 
-static const Stmt *ignoreTransparentExprs(const Stmt *S) {
-  if (const auto *E = dyn_cast<Expr>(S))
-    return ignoreTransparentExprs(E);
-  return S;
-}
-
-EnvironmentEntry::EnvironmentEntry(const Stmt *S, const LocationContext *L)
-    : std::pair<const Stmt *,
-                const StackFrameContext *>(ignoreTransparentExprs(S),
-                                           L ? L->getStackFrame()
-                                             : nullptr) {}
+EnvironmentEntry::EnvironmentEntry(const Expr *E, const StackFrame *SF)
+    : std::pair<const Expr *, const StackFrame *>(ignoreTransparentExprs(E),
+                                                  SF) {}
 
 SVal Environment::lookupExpr(const EnvironmentManager &EnvMgr, const EnvironmentEntry &E) const {
   unsigned LayerIndex = BottomLayerIndex;
@@ -96,16 +88,10 @@ const LocationContext* Environment::getLocationContext() const {
 
 SVal Environment::getSVal(const EnvironmentManager &EnvMgr, const EnvironmentEntry &Entry,
                           SValBuilder& svalBuilder) const {
-  const Stmt *S = Entry.getStmt();
-  assert(!isa<ObjCForCollectionStmt>(S) &&
-         "Use ExprEngine::hasMoreIteration()!");
-  assert((isa<Expr, ReturnStmt>(S)) &&
-         "Environment can only argue about Exprs, since only they express "
-         "a value! Any non-expression statement stored in Environment is a "
-         "result of a hack!");
-  const LocationContext *LCtx = Entry.getLocationContext();
+  const Expr *Ex = Entry.getExpr();
+  const StackFrame *SF = Entry.getStackFrame();
 
-  switch (S->getStmtClass()) {
+  switch (Ex->getStmtClass()) {
   case Stmt::CXXBindTemporaryExprClass:
   case Stmt::ExprWithCleanupsClass:
   case Stmt::GenericSelectionExprClass:
@@ -128,18 +114,11 @@ SVal Environment::getSVal(const EnvironmentManager &EnvMgr, const EnvironmentEnt
   case Stmt::SizeOfPackExprClass:
   case Stmt::PredefinedExprClass:
     // Known constants; defer to SValBuilder.
-    return *svalBuilder.getConstantVal(cast<Expr>(S));
+    return *svalBuilder.getConstantVal(Ex);
 
-  case Stmt::ReturnStmtClass: {
-    const auto *RS = cast<ReturnStmt>(S);
-    if (const Expr *RE = RS->getRetValue())
-      return getSVal(EnvMgr, EnvironmentEntry(RE, LCtx), svalBuilder);
-    return UndefinedVal();
-  }
-
-  // Handle all other Stmt* using a lookup.
+  // Handle all other Expr* using a lookup.
   default:
-    return lookupExpr(EnvMgr, EnvironmentEntry(S, LCtx));
+    return lookupExpr(EnvMgr, EnvironmentEntry(Ex, SF));
   }
 }
 
@@ -309,14 +288,10 @@ EnvironmentManager::removeDeadBindings(Environment Env,
 
   // Iterate over the block-expr bindings.
   for (Environment::iterator I = Env.begin(), End = Env.end(); I != End; ++I) {
-    const Stmt *BlkExpr = I->first;
+    const Expr *BlkExpr = I->first;
     SVal X = I.getData();
 
-    const Expr *E = dyn_cast<Expr>(BlkExpr);
-    if (!E)
-      continue;
-
-    if (SymReaper.isLive(E, Env.getStackFrameContext())) {
+    if (SymReaper.isLive(BlkExpr, BlkExpr.getStackFrame())) {
       // Copy the binding to the new map.
       EBMapRef = EBMapRef.add(BlkExpr, X);
 
@@ -331,7 +306,7 @@ EnvironmentManager::removeDeadBindings(Environment Env,
 }
 
 void Environment::printJson(raw_ostream &Out, EnvironmentManager &EnvMgr, const ASTContext &Ctx,
-                            const LocationContext *LCtx, const char *NL,
+                            const StackFrame *SF, const char *NL,
                             unsigned int Space, bool IsDot) const {
 #if 0
   Indent(Out, Space, IsDot) << "\"environment\": ";
@@ -354,30 +329,27 @@ void Environment::printJson(raw_ostream &Out, EnvironmentManager &EnvMgr, const 
   }
 
   ++Space;
-#if 0
-  if (!LCtx) {
-    // Find the freshest location context.
-    llvm::SmallPtrSet<const LocationContext *, 16> FoundContexts;
+  if (!SF) {
+    // Find the freshest stack frame.
+    llvm::SmallPtrSet<const StackFrame *, 16> FoundStackFrames;
     for (const auto &I : *this) {
-      const LocationContext *LC = StackFrame;
-      if (FoundContexts.count(LC) == 0) {
-        // This context is fresher than all other contexts so far.
-        LCtx = LC;
-        for (const LocationContext *LCI = LC; LCI; LCI = LCI->getParent())
-          FoundContexts.insert(LCI);
+      const StackFrame *CurrentSF = StackFrame;
+      if (FoundStackFrames.count(CurrentSF) == 0) {
+        // This stack frame is fresher than all other stack frames so far.
+        SF = CurrentSF;
+        for (const StackFrame *SFI = CurrentSF; SFI; SFI = SFI->getParent())
+          FoundStackFrames.insert(SFI);
       }
     }
   }
-#endif
 
-  assert(LCtx);
+  assert(SF);
 
-  Out << "{ \"pointer\": \"" << (const void *)LCtx->getStackFrame()
-      << "\", \"items\": [" << NL;
+  Out << "{ \"pointer\": \"" << (const void *)SF << "\", \"items\": [" << NL;
   PrintingPolicy PP = Ctx.getPrintingPolicy();
 
-  LCtx->printJson(Out, NL, Space, IsDot, [&](const LocationContext *LC) {
-    // LCtx items begin
+  SF->printJson(Out, NL, Space, IsDot, [&](const StackFrame *SF) {
+    // SF items begin
     bool HasItem = false;
     unsigned int InnerSpace = Space + 1;
 
@@ -393,9 +365,9 @@ void Environment::printJson(raw_ostream &Out, EnvironmentManager &EnvMgr, const 
     using BindingsTy = llvm::ImmutableMap<const Stmt*, SVal>;
     BindingsTy::iterator LastI = ExprBindings.end();
 
-#if 0
-    for (BindingsTy::iterator I = ExprBindings.begin(); I != ExprBindings.end(); ++I) {
-      if (StackFrame != LC)
+    for (BindingsTy::iterator I = ExprBindings.begin(); I != ExprBindings.end();
+         ++I) {
+      if (I->first.getStackFrame() != SF)
         continue;
 
       if (!HasItem) {
@@ -403,21 +375,23 @@ void Environment::printJson(raw_ostream &Out, EnvironmentManager &EnvMgr, const 
         Out << '[' << NL;
       }
 
-      const Stmt *S = I->first;
-      (void)S;
-      assert(S != nullptr && "Expected non-null Stmt");
+      const Expr *Ex = I->first.getExpr();
+      (void)Ex;
+      assert(Ex != nullptr && "Expected non-null Expr");
 
       LastI = I;
     }
-#endif
 
-    for (BindingsTy::iterator I = ExprBindings.begin(); I != ExprBindings.end(); ++I) {
+    for (BindingsTy::iterator I = ExprBindings.begin(); I != ExprBindings.end();
+         ++I) {
+      if (I->first.getStackFrame() != SF)
+        continue;
 
-      const Stmt *S = I->first;
+      const Expr *Ex = I->first.getExpr();
       Indent(Out, InnerSpace, IsDot)
-          << "{ \"stmt_id\": " << S->getID(Ctx) << ", \"kind\": \""
-          << S->getStmtClassName() << "\", \"pretty\": ";
-      S->printJson(Out, nullptr, PP, /*AddQuotes=*/true);
+          << "{ \"stmt_id\": " << Ex->getID(Ctx) << ", \"kind\": \""
+          << Ex->getStmtClassName() << "\", \"pretty\": ";
+      Ex->printJson(Out, nullptr, PP, /*AddQuotes=*/true);
 
       Out << ", \"value\": ";
       I->second.printJson(Out, /*AddQuotes=*/true);

@@ -30,23 +30,22 @@ class EnvironmentManager;
 class SValBuilder;
 class SymbolReaper;
 
-/// An entry in the environment consists of a Stmt and an LocationContext.
+/// An entry in the environment consists of a Stmt and an StackFrame.
 /// This allows the environment to manage context-sensitive bindings,
 /// which is essentially for modeling recursive function analysis, among
 /// other things.
-class EnvironmentEntry : public std::pair<const Stmt *,
-                                          const StackFrameContext *> {
+class EnvironmentEntry : public std::pair<const Expr *, const StackFrame *> {
 public:
-  EnvironmentEntry(const Stmt *s, const LocationContext *L);
+  EnvironmentEntry(const Expr *E, const StackFrame *SF);
 
-  const Stmt *getStmt() const { return first; }
-  const LocationContext *getLocationContext() const { return second; }
+  const Expr *getExpr() const { return first; }
+  const StackFrame *getStackFrame() const { return second; }
 
   /// Profile an EnvironmentEntry for inclusion in a FoldingSet.
   static void Profile(llvm::FoldingSetNodeID &ID,
                       const EnvironmentEntry &E) {
-    ID.AddPointer(E.getStmt());
-    ID.AddPointer(E.getLocationContext());
+    ID.AddPointer(E.getExpr());
+    ID.AddPointer(E.getStackFrame());
   }
 
   void Profile(llvm::FoldingSetNodeID &ID) const {
@@ -109,7 +108,6 @@ public:
                                  ProgramStateRef state);
 };
 
-/// An immutable map from EnvironemntEntries to SVals.
 class Environment {
 private:
   friend class EnvironmentManager;
@@ -190,8 +188,16 @@ public:
     return BottomLocation == RHS.BottomLocation && BottomLayerIndex == RHS.BottomLayerIndex;
   }
 
+<<<<<<< HEAD
   void printJson(raw_ostream &Out, EnvironmentManager &EnvMgr, const ASTContext &Ctx,
                  const LocationContext *LCtx = nullptr, const char *NL = "\n",
+||||||| a76f63870e95
+  void printJson(raw_ostream &Out, const ASTContext &Ctx,
+                 const LocationContext *LCtx = nullptr, const char *NL = "\n",
+=======
+  void printJson(raw_ostream &Out, const ASTContext &Ctx,
+                 const StackFrame *SF = nullptr, const char *NL = "\n",
+>>>>>>> hivatalos/main
                  unsigned int Space = 0, bool IsDot = false) const;
 };
 
