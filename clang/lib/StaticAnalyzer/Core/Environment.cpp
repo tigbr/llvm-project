@@ -29,6 +29,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
+#include <unordered_map>
 
 using namespace clang;
 using namespace ento;
@@ -68,21 +69,21 @@ EnvironmentEntry::EnvironmentEntry(const Expr *E, const StackFrame *SF)
                                                   SF) {}
 
 SVal Environment::lookupExpr(const EnvironmentManager &EnvMgr, const EnvironmentEntry &E) const {
-  unsigned LayerIndex = BottomLayerIndex;
-  const LocationContext *Location = BottomLocation;
-  while (Location && Location != E.second) {
-    Location = Location->getParent();
-    LayerIndex = EnvMgr.Layers[LayerIndex].ParentLayerIndex;
+  Layer *L = BottomLayer;
+  const StackFrame *SF = BottomLocation;
+  while (SF && SF != E.second) {
+    SF = SF->getParent();
+    L = L->ParentLayer;
   }
-  if (Location) {
-    const SVal *result = EnvMgr.Layers[LayerIndex].ExprBindings.lookup(E.first);
+  if (SF) {
+    const SVal *result = L->ExprBindings.lookup(E.first);
     if (result)
       return *result;
   }
   return UnknownVal();
 }
 
-const LocationContext* Environment::getLocationContext() const {
+const StackFrame* Environment::getStackFrame() const {
   return BottomLocation;
 }
 
@@ -130,81 +131,82 @@ Environment EnvironmentManager::bindExpr(const Environment *Env,
                                          const EnvironmentEntry &E,
                                          SVal V,
                                          bool Invalidate) {
-  assert(Env->getLocationContext() && "Bad Environment construction!");
+  assert(Env->getStackFrame() && "Bad Environment construction!");
   assert(E.second && "Binding location must be provided!");
 
   if (V.isUnknown() && !Invalidate) {
     return *Env;
   }
 
-  if (Env->getLocationContext() == E.second) {
+  if (Env->getStackFrame() == E.second) {
     if (V.isUnknown()) {
       if (Invalidate) {
-        Layer OldLayer{Layers[Env->BottomLayerIndex]};
-        Layer NewLayer{BindingsFactory.remove(OldLayer.ExprBindings, E.first), OldLayer.ParentLayerIndex};
-        return Environment(saveLayer(NewLayer), Env->getLocationContext());
+        Layer OldLayer{*Env->BottomLayer};
+        Layer NewLayer{BindingsFactory.remove(OldLayer.ExprBindings, E.first), OldLayer.ParentLayer};
+        return Environment(saveLayer(NewLayer), Env->getStackFrame());
       }
     }
-    unsigned LayerIndex = Env->BottomLayerIndex;
-    Layer OldLayer{Layers[LayerIndex]};
-    Layer NewLayer{BindingsFactory.add(OldLayer.ExprBindings, E.first, V), OldLayer.ParentLayerIndex};
-    return Environment(saveLayer(NewLayer), Env->getLocationContext());
-  } else if (E.second->isParentOf(Env->getLocationContext())) {
+    Layer *L = Env->BottomLayer;
+    Layer OldLayer{*L};
+    Layer NewLayer{BindingsFactory.add(OldLayer.ExprBindings, E.first, V), OldLayer.ParentLayer};
+    return Environment(saveLayer(NewLayer), Env->getStackFrame());
+  } else if (E.second->isParentOf(Env->getStackFrame())) {
 
     std::vector<Layer> NewLayers;
-    unsigned LayerIndex = Env->BottomLayerIndex;
-    const LocationContext *Location = Env->BottomLocation;
+    Layer *L = Env->BottomLayer;
+    const StackFrame *Location = Env->BottomLocation;
     do {
-      NewLayers.push_back(Layers[LayerIndex]);
-      LayerIndex = Layers[LayerIndex].ParentLayerIndex;
+      NewLayers.push_back(*L);
+      L = L->ParentLayer;
       Location = Location->getParent();
     } while (Location != E.second);
 
-    Layer OldLayer{Layers[LayerIndex]};
+    Layer OldLayer{*L};
     if (V.isUnknown()) {
       if (Invalidate) {
-        NewLayers.push_back(Layer{BindingsFactory.remove(OldLayer.ExprBindings, E.first), OldLayer.ParentLayerIndex});
+        NewLayers.push_back(Layer{BindingsFactory.remove(OldLayer.ExprBindings, E.first), OldLayer.ParentLayer});
       }
     } else {
-      NewLayers.push_back(Layer{BindingsFactory.add(OldLayer.ExprBindings, E.first, V), OldLayer.ParentLayerIndex});
+      NewLayers.push_back(Layer{BindingsFactory.add(OldLayer.ExprBindings, E.first, V), OldLayer.ParentLayer});
     }
 
     for (int i = NewLayers.size() - 1; i > 0; i -= 1) {
-      NewLayers[i-1].ParentLayerIndex = saveLayer(NewLayers[i]);
+      NewLayers[i-1].ParentLayer = saveLayer(NewLayers[i]);
     }
 
-    return Environment(saveLayer(NewLayers[0]), Env->getLocationContext());
-  } else if (Env->getLocationContext() == E.second->getParent()) {
-	Layer layer{BindingsFactory.add(BindingsFactory.getEmptyMap(), E.first, V), Env->BottomLayerIndex};
+    return Environment(saveLayer(NewLayers[0]), Env->getStackFrame());
+  } else if (Env->getStackFrame() == E.second->getParent()) {
+	Layer layer{BindingsFactory.add(BindingsFactory.getEmptyMap(), E.first, V), Env->BottomLayer};
     return Environment(saveLayer(layer), E.second);
   } else {
-    const LocationContext *Location1 = Env->getLocationContext();
-    unsigned LayerIndex = Env->BottomLayerIndex;
+    const StackFrame *Location1 = Env->getStackFrame();
+    Layer *L = Env->BottomLayer;
     while (Location1) {
       if (Location1->isParentOf(E.second)) {
-        std::vector<Layer> NewLayers{Layer{BindingsFactory.add(BindingsFactory.getEmptyMap(), E.first, V), Env->BottomLayerIndex}};
+        std::vector<Layer> NewLayers{Layer{BindingsFactory.add(BindingsFactory.getEmptyMap(), E.first, V), Env->BottomLayer}};
 
-        const LocationContext *Location = E.second->getParent();
+        const StackFrame *Location = E.second->getParent();
         while (Location != Location1) {
           NewLayers.push_back(Layer{BindingsFactory.getEmptyMap(), 0});
           Location = Location->getParent();
         }
 
-        NewLayers.back().ParentLayerIndex = LayerIndex;
+        NewLayers.back().ParentLayer = L;
         for (int i = NewLayers.size() - 1; i > 0; i -= 1) {
-          NewLayers[i-1].ParentLayerIndex = saveLayer(NewLayers[i]);
+          NewLayers[i-1].ParentLayer = saveLayer(NewLayers[i]);
         }
 
         return Environment(saveLayer(NewLayers[0]), E.second);
       }
-      LayerIndex = Layers[LayerIndex].ParentLayerIndex;
+      L = L->ParentLayer;
       Location1 = Location1->getParent();
     }
 
 	assert(E.second->getParent() == nullptr && "Should be top level here!");
-	unsigned id = saveLayer(Layer{BindingsFactory.add(BindingsFactory.getEmptyMap(), E.first, V)});
-    Layers[id].ParentLayerIndex = id;
-    return Environment(id, E.second);
+    Layer LayerToSave{BindingsFactory.add(BindingsFactory.getEmptyMap(), E.first, V), nullptr};
+	Layer *ParentLayer = saveLayer(LayerToSave);
+    // ParentLayer->ParentLayer = ParentLayer;
+    return Environment(ParentLayer, E.second);
   }
 }
 
@@ -229,6 +231,50 @@ public:
 
 } // namespace
 
+Layer* EnvironmentManager::saveLayer(Layer L) {
+  static unsigned call_id = 0;
+  call_id += 1;
+  llvm::FoldingSetNodeID ID;
+  L.ExprBindings.Profile(ID);
+  ID.AddPointer(L.ParentLayer);
+  void *InsertLocation;
+  Layer *Result = Layers.FindNodeOrInsertPos(ID, InsertLocation);
+  if (Result) {
+    return Result;
+  } else {
+    Layers.InsertNode(new Layer(L), InsertLocation);
+  }
+#if 0
+  for (unsigned i = 0; i < Layers.size(); i += 1) {
+    if (Layers[i].ExprBindings.getHeight() != NewLayer.ExprBindings.getHeight()) continue;
+    if (Layers[i] == NewLayer) {
+      return i;
+    }
+  }
+  Layers.push_back(NewLayer);
+  return Layers.size() - 1;
+  auto *UpdatedLayerIndex = IndexOf.lookup(NewLayer);
+  if (Layers.size() > 0 && NewLayer == Layers[0]) {
+    assert(UpdatedLayerIndex && *UpdatedLayerIndex == 0 && "Empty layer should be found, it is the first layer added!!");
+  }
+  if (UpdatedLayerIndex) {
+    return *UpdatedLayerIndex;
+  } else {
+    bool first = (Layers.size() == 0);
+    Layers.push_back(NewLayer);
+    if (!first) {
+      assert(IndexOf.lookup(Layers[0]));
+    }
+    IndexOf = IndexOf.add(NewLayer, Layers.size() - 1);
+    assert(IndexOf.lookup(NewLayer));
+    if (!first) {
+      assert(IndexOf.lookup(Layers[0]));
+    }
+    return Layers.size()-1;
+  }
+#endif
+}
+
 // removeDeadBindings:
 //  - Remove subexpression bindings.
 //  - Remove dead block expression bindings.
@@ -240,29 +286,27 @@ Environment
 EnvironmentManager::removeDeadBindings(Environment Env,
                                        SymbolReaper &SymReaper,
                                        ProgramStateRef ST) {
-  Layer BaseLayer = Layers[Env.BottomLayerIndex];
-  const LocationContext *CurrentStackFrame = SymReaper.getLocationContext();
-  const LocationContext *NewStackFrame = Env.getLocationContext();
+  Layer *L = Env.BottomLayer;
+  const StackFrame *SF = Env.getStackFrame();
 
-  while (NewStackFrame && !NewStackFrame->inTopFrame() && CurrentStackFrame->isParentOf(NewStackFrame)) {
-    NewStackFrame = NewStackFrame->getParent();
-    BaseLayer = Layers[BaseLayer.ParentLayerIndex];
+  while (SF && !SF->inTopFrame() && SymReaper.getStackFrame()->isParentOf(SF)) {
+    SF = SF->getParent();
+    L = L->ParentLayer;
   }
+  const StackFrame *NewBottomStackFrame = SF;
 
   MarkLiveCallback CB(SymReaper);
   ScanReachableSymbols RSScaner(ST, CB);
 
-  Layer OldLayer = BaseLayer;
   std::vector<Layer> NewLayers;
-  for (const LocationContext *location = NewStackFrame; location; location = location->getParent(), OldLayer = Layers[OldLayer.ParentLayerIndex]) {
-    NewLayers.push_back({BindingsFactory.getEmptyMap(), OldLayer.ParentLayerIndex});
-    llvm::ImmutableMapRef<const Stmt*, SVal> EBMapRef(NewLayers.back().ExprBindings.getRootWithoutRetain(), BindingsFactory.getTreeFactory());
-    for (auto it = OldLayer.ExprBindings.begin(); it != OldLayer.ExprBindings.end(); it++) {
-      const Stmt *BlkExpr = it.getKey();
+  for (;SF; SF = SF->getParent(), L = L->ParentLayer) {
+    NewLayers.push_back({BindingsFactory.getEmptyMap(), L->ParentLayer});
+    llvm::ImmutableMapRef<const Expr*, SVal> EBMapRef(NewLayers.back().ExprBindings.getRootWithoutRetain(), BindingsFactory.getTreeFactory());
+    for (auto it = L->ExprBindings.begin(); it != L->ExprBindings.end(); it++) {
+      const Expr *E = it.getKey();
       SVal X = it.getData();
 
-      const Expr *E = dyn_cast<Expr>(BlkExpr);
-      if (E && SymReaper.isLive(E, location)) {
+      if (E && SymReaper.isLive(E, SF)) {
         // Keep the binding
         // Mark all symbols in the block expr's value live.
         RSScaner.scan(X);
@@ -274,10 +318,10 @@ EnvironmentManager::removeDeadBindings(Environment Env,
   }
 
   for (int i = NewLayers.size() - 1; i > 0; i -= 1) {
-    NewLayers[i-1].ParentLayerIndex = saveLayer(NewLayers[i]);
+    NewLayers[i-1].ParentLayer = saveLayer(NewLayers[i]);
   }
 
-  return Environment(saveLayer(NewLayers[0]), NewStackFrame);
+  return Environment(saveLayer(NewLayers[0]), NewBottomStackFrame);
 
 #if 0
   Environment NewEnv = getInitialEnvironment(NewStackFrame);
@@ -312,7 +356,7 @@ void Environment::printJson(raw_ostream &Out, EnvironmentManager &EnvMgr, const 
   Indent(Out, Space, IsDot) << "\"environment\": ";
 
   Layer layer{EnvMgr.Layers[BottomLayerIndex]};
-  const LocationContext *L = BottomLocation;
+  const StackFrame *L = BottomLocation;
   bool hasNoBindings = true;
   while (L && hasNoBindings) {
     if (layer.ExprBindings.isEmpty()) {
@@ -355,7 +399,7 @@ void Environment::printJson(raw_ostream &Out, EnvironmentManager &EnvMgr, const 
 
     // Store the last ExprBinding which we will print.
     Layer layer{EnvMgr.Layers[BottomLayerIndex]};
-    const LocationContext *Location = BottomLocation;
+    const StackFrame *Location = BottomLocation;
     while (Location != LC) {
       layer = EnvMgr.Layers[layer.ParentLayerIndex];
       Location = Location->getParent();

@@ -21,8 +21,6 @@
 
 namespace clang {
 
-class Stmt;
-
 namespace ento {
 
 class Environment;
@@ -30,7 +28,7 @@ class EnvironmentManager;
 class SValBuilder;
 class SymbolReaper;
 
-/// An entry in the environment consists of a Stmt and an StackFrame.
+/// An entry in the environment consists of a Expr and an StackFrame.
 /// This allows the environment to manage context-sensitive bindings,
 /// which is essentially for modeling recursive function analysis, among
 /// other things.
@@ -53,21 +51,23 @@ public:
   }
 };
 
-struct Layer {
-	llvm::ImmutableMap<const Stmt*, SVal> ExprBindings;
-	unsigned ParentLayerIndex;
+struct Layer : public llvm::FoldingSetNode {
+	llvm::ImmutableMap<const Expr*, SVal> ExprBindings;
+	Layer *ParentLayer;
+
+	Layer(llvm::ImmutableMap<const Expr*, SVal> Bindings, Layer *ParentLayer) : ExprBindings{ExprBindings}, ParentLayer{ParentLayer} { }
 
 	void Profile(llvm::FoldingSetNodeID& ID) const {
-		ID.AddInteger(ParentLayerIndex);
+		ID.AddPointer(ParentLayer);
 		ExprBindings.Profile(ID);
 	} 
 
 	bool operator==(const Layer other) const {
-		return ExprBindings == other.ExprBindings && ParentLayerIndex == other.ParentLayerIndex;
+		return ExprBindings == other.ExprBindings && ParentLayer == other.ParentLayer;
 	}
 
 	bool operator<(const Layer other) const {
-		return ParentLayerIndex < other.ParentLayerIndex;
+		return ParentLayer < other.ParentLayer;
 	}
 };
 
@@ -76,28 +76,20 @@ private:
   friend class Environment;
 
   llvm::ImmutableMap<Layer, unsigned>::Factory LayerFactory;
-  llvm::ImmutableMap<const Stmt*, SVal>::Factory BindingsFactory;
+  llvm::ImmutableMap<const Expr*, SVal>::Factory BindingsFactory;
 
-  llvm::ImmutableMap<Layer, unsigned> IndexOf;
-  std::vector<Layer> Layers;
+  llvm::ImmutableMapRef<Layer, unsigned> IndexOf;
+  llvm::FoldingSet<Layer> Layers;
+  Layer *EmptyLayer;
 
-  unsigned saveLayer(Layer NewLayer) {
-    const unsigned *UpdatedLayerIndex = IndexOf.lookup(NewLayer);
-    if (UpdatedLayerIndex) {
-      return *UpdatedLayerIndex;
-    } else {
-      Layers.push_back(NewLayer);
-      IndexOf = LayerFactory.add(IndexOf, NewLayer, Layers.size() - 1);
-      return Layers.size()-1;
-    }
-  }
+  Layer* saveLayer(Layer L);
 
 public:
-  EnvironmentManager(llvm::BumpPtrAllocator &Allocator) : LayerFactory(Allocator), BindingsFactory(Allocator), IndexOf{LayerFactory.getEmptyMap()} {
-    saveLayer(Layer{BindingsFactory.getEmptyMap(), 0});
+  EnvironmentManager(llvm::BumpPtrAllocator &Allocator) : LayerFactory(Allocator), BindingsFactory(Allocator), IndexOf{LayerFactory.getEmptyMap(), LayerFactory}, EmptyLayer{nullptr} {
+    EmptyLayer = saveLayer(Layer{BindingsFactory.getEmptyMap(), nullptr});
   }
 
-  inline Environment getInitialEnvironment(const LocationContext *Location);
+  inline Environment getInitialEnvironment(const StackFrame *Location);
 
   /// Bind a symbolic value to the given environment entry.
   Environment bindExpr(const Environment *Env, const EnvironmentEntry &E, SVal V,
@@ -112,32 +104,40 @@ class Environment {
 private:
   friend class EnvironmentManager;
 
-  unsigned BottomLayerIndex;
-  const LocationContext *BottomLocation;
+  Layer *BottomLayer;
+  const StackFrame *BottomLocation;
 
-  Environment(unsigned Idx, const LocationContext *Location) : BottomLayerIndex{Idx}, BottomLocation{Location} {}
+  Environment(Layer *BottomLayer, const StackFrame *Location) : BottomLayer{BottomLayer}, BottomLocation{Location} {}
 
   SVal lookupExpr(const EnvironmentManager&, const EnvironmentEntry &E) const;
 
 public:
 
+  using BindingsIteratorType = llvm::ImmutableMap<const Expr*, SVal>::iterator;
+
 #if 1
   struct iterator {
-    const EnvironmentManager *EnvMgr;
-    const LocationContext *BottomLocation;
-	unsigned BottomLayerIndex;
-    llvm::ImmutableMap<const Stmt*, SVal>::iterator BindingsIterator;
-    llvm::ImmutableMap<const Stmt*, SVal>::iterator BindingsEnd;
+    const StackFrame *BottomLocation;
+	const Layer *BottomLayer;
+    BindingsIteratorType BindingsIterator;
+    BindingsIteratorType BindingsEnd;
 
-    iterator(const clang::ento::EnvironmentManager* EnvMgr, const clang::LocationContext* const BottomLocation, const unsigned int BottomLayerIndex, llvm::ImmutableMap<const clang::Stmt*, clang::ento::SVal>::iterator BindingsIt, const unsigned int&, llvm::ImmutableMap<const clang::Stmt*, clang::ento::SVal>::iterator BindingsEnd)
-    : EnvMgr{EnvMgr}, BottomLocation{BottomLocation}, BottomLayerIndex{BottomLayerIndex}, BindingsIterator{BindingsIt}, BindingsEnd{BindingsEnd} { }
+    iterator(
+      const clang::StackFrame* const BottomLocation,
+      const Layer *BottomLayer,
+      BindingsIteratorType BindingsIt,
+      BindingsIteratorType BindingsEnd
+    ) : BottomLocation{BottomLocation},
+        BottomLayer{BottomLayer},
+        BindingsIterator{BindingsIt},
+        BindingsEnd{BindingsEnd} { }
 
     bool operator!=(const struct iterator &other) {
       return !this->operator==(other);
     }
 
     bool operator==(const struct iterator &other) {
-      return this->EnvMgr == other.EnvMgr && this->BottomLocation == other.BottomLocation && this->BottomLayerIndex == other.BottomLayerIndex && this->BindingsIterator == other.BindingsIterator && this->BindingsEnd == other.BindingsEnd;
+      return this->BottomLocation == other.BottomLocation && this->BottomLayer == other.BottomLayer && this->BindingsIterator == other.BindingsIterator && this->BindingsEnd == other.BindingsEnd;
     }
 
     std::pair<EnvironmentEntry, SVal> operator*() {
@@ -150,22 +150,33 @@ public:
       }
       while (BindingsIterator == BindingsEnd && BottomLocation->getParent()) {
         BottomLocation = BottomLocation->getParent();
-        BottomLayerIndex = EnvMgr->Layers[BottomLayerIndex].ParentLayerIndex;
-        BindingsIterator = EnvMgr->Layers[BottomLayerIndex].ExprBindings.begin();
-        BindingsEnd = EnvMgr->Layers[BottomLayerIndex].ExprBindings.end();
+        BottomLayer = BottomLayer->ParentLayer;
+        BindingsIterator = BottomLayer->ExprBindings.begin();
+        BindingsEnd = BottomLayer->ExprBindings.end();
       }
       if (BindingsIterator == BindingsEnd) {
-        *this = iterator(EnvMgr, nullptr, 0, EnvMgr->Layers[0].ExprBindings.end(), 0, EnvMgr->Layers[0].ExprBindings.end());
+        BindingsIterator = BottomLayer->ExprBindings.begin();
+        BindingsEnd = BottomLayer->ExprBindings.begin();
+        BottomLocation = nullptr;
+        BottomLayer = nullptr;
       }
       return *this;
     }
   };
 
-  iterator begin(const EnvironmentManager *EnvMgr) const { return iterator(EnvMgr, BottomLocation, BottomLayerIndex, EnvMgr->Layers[BottomLayerIndex].ExprBindings.begin(), BottomLayerIndex, EnvMgr->Layers[BottomLayerIndex].ExprBindings.end()); }
-  iterator end(const EnvironmentManager *EnvMgr) const { return iterator(EnvMgr, nullptr, 0, EnvMgr->Layers[0].ExprBindings.end(), 0, EnvMgr->Layers[0].ExprBindings.end()); }
+  iterator begin(const EnvironmentManager *EnvMgr) const {
+    return iterator(BottomLocation,
+                    BottomLayer,
+                    BottomLayer->ExprBindings.begin(),
+                    BottomLayer->ExprBindings.end()); }
+  iterator end(const EnvironmentManager *EnvMgr) const {
+    return iterator(nullptr,
+                    nullptr,
+                    BottomLayer->ExprBindings.begin(),
+                    BottomLayer->ExprBindings.end()); }
 #endif
 
-  const LocationContext* getLocationContext() const;
+  const StackFrame* getStackFrame() const;
 
   /// Fetches the current binding of the expression in the
   /// Environment.
@@ -174,7 +185,7 @@ public:
   /// Profile - Profile the contents of an Environment object for use
   ///  in a FoldingSet.
   static void Profile(llvm::FoldingSetNodeID& ID, const Environment *Env) {
-    ID.AddInteger(Env->BottomLayerIndex);
+    ID.AddPointer(Env->BottomLayer);
     ID.AddPointer(Env->BottomLocation);
   }
 
@@ -185,24 +196,16 @@ public:
   }
 
   bool operator==(const Environment& RHS) const {
-    return BottomLocation == RHS.BottomLocation && BottomLayerIndex == RHS.BottomLayerIndex;
+    return BottomLocation == RHS.BottomLocation && BottomLayer == RHS.BottomLayer;
   }
 
-<<<<<<< HEAD
   void printJson(raw_ostream &Out, EnvironmentManager &EnvMgr, const ASTContext &Ctx,
-                 const LocationContext *LCtx = nullptr, const char *NL = "\n",
-||||||| a76f63870e95
-  void printJson(raw_ostream &Out, const ASTContext &Ctx,
-                 const LocationContext *LCtx = nullptr, const char *NL = "\n",
-=======
-  void printJson(raw_ostream &Out, const ASTContext &Ctx,
                  const StackFrame *SF = nullptr, const char *NL = "\n",
->>>>>>> hivatalos/main
                  unsigned int Space = 0, bool IsDot = false) const;
 };
 
-Environment EnvironmentManager::getInitialEnvironment(const LocationContext *Location) {
-  return Environment(0, Location);
+Environment EnvironmentManager::getInitialEnvironment(const StackFrame *Location) {
+  return Environment(EmptyLayer, Location);
 }
 
 } // namespace ento
