@@ -384,7 +384,7 @@ ConditionTruthVal ProgramState::isNull(SVal V) const {
 }
 
 ProgramStateRef ProgramStateManager::getInitialState(const StackFrame *InitSF) {
-  ProgramState State(this, EnvMgr.getInitialEnvironment(),
+  ProgramState State(this, EnvMgr.getInitialEnvironment(InitSF),
                      StoreMgr->getInitialStore(InitSF),
                      GDMFactory.getEmptyMap());
 

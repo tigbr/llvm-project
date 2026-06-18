@@ -508,6 +508,8 @@ static ProgramStateRef
 bindRequiredArrayElementToEnvironment(ProgramStateRef State,
                                       const ArrayInitLoopExpr *AILE,
                                       const StackFrame *SF, NonLoc Idx) {
+  static unsigned call_id = 0;
+  call_id += 1;
   SValBuilder &SVB = State->getStateManager().getSValBuilder();
   MemRegionManager &MRMgr = SVB.getRegionManager();
   ASTContext &Ctx = SVB.getContext();
