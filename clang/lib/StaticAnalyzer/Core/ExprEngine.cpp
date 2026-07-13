@@ -232,11 +232,6 @@ ExprEngine::ExprEngine(cross_tu::CrossTranslationUnitContext &CTU,
       svalBuilder(StateMgr.getSValBuilder()), ObjCNoRet(mgr.getASTContext()),
       BR(mgr, *this), VisitedCallees(VisitedCalleesIn),
       HowToInline(HowToInlineIn) {
-  unsigned TrimInterval = mgr.options.GraphTrimInterval;
-  if (TrimInterval != 0) {
-    // Enable eager node reclamation when constructing the ExplodedGraph.
-    G.enableNodeReclamation(TrimInterval);
-  }
 }
 
 //===----------------------------------------------------------------------===//
@@ -1101,8 +1096,6 @@ const ProgramPointTag *ExprEngine::cleanupNodeTag() {
 }
 
 void ExprEngine::ProcessStmt(const Stmt *currStmt, ExplodedNode *Pred) {
-  // Reclaim any unnecessary nodes in the ExplodedGraph.
-  G.reclaimRecentlyAllocatedNodes();
 
   PrettyStackTraceLoc CrashInfo(getContext().getSourceManager(),
                                 currStmt->getBeginLoc(),

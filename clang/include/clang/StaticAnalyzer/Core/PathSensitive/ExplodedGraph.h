@@ -317,19 +317,8 @@ protected:
   /// NumNodes - The number of nodes in the graph.
   int64_t NumNodes = 0;
 
-  /// A list of recently allocated nodes that can potentially be recycled.
-  NodeVector ChangedNodes;
-
   /// A list of nodes that can be reused.
   NodeVector FreeNodes;
-
-  /// Determines how often nodes are reclaimed.
-  ///
-  /// If this is 0, nodes will never be reclaimed.
-  unsigned ReclaimNodeInterval = 0;
-
-  /// Counter to determine when to reclaim nodes.
-  unsigned ReclaimCounter;
 
 public:
   ExplodedGraph();
@@ -415,23 +404,9 @@ public:
        InterExplodedGraphMap *ForwardMap = nullptr,
        InterExplodedGraphMap *InverseMap = nullptr) const;
 
-  /// Enable tracking of recently allocated nodes for potential reclamation
-  /// when calling reclaimRecentlyAllocatedNodes().
-  void enableNodeReclamation(unsigned Interval) {
-    ReclaimCounter = ReclaimNodeInterval = Interval;
-  }
-
-  /// Reclaim "uninteresting" nodes created since the last time this method
-  /// was called.
-  void reclaimRecentlyAllocatedNodes();
-
   /// Returns true if nodes for the given expression kind are always
   ///        kept around.
   static bool isInterestingLValueExpr(const Expr *Ex);
-
-private:
-  bool shouldCollect(const ExplodedNode *node);
-  void collectNode(ExplodedNode *node);
 };
 
 /// ExplodedNodeSet is a set of `ExplodedNode *` elements with the invariant

@@ -87,7 +87,6 @@
 // CHECK-NEXT: experimental-enable-naive-ctu-analysis = false
 // CHECK-NEXT: exploration_strategy = unexplored_first_queue
 // CHECK-NEXT: faux-bodies = true
-// CHECK-NEXT: graph-trim-interval = 1000
 // CHECK-NEXT: ignore-bison-generated-files = true
 // CHECK-NEXT: ignore-flex-generated-files = true
 // CHECK-NEXT: inline-functions-with-ambiguous-loops = false
