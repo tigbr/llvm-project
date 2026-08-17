@@ -211,14 +211,6 @@ def DivZeroChecker : Checker<"DivideZero">,
   HelpText<"Check for division by zero">,
   Documentation<HasDocumentation>;
 
-def MainCallChecker : Checker<"MainCall">,
-  HelpText<"Check recursive calls to main">,
-  Documentation<NotDocumented>;
-
-def TaggedUnionChecker : Checker<"TaggedUnionChecker">,
-  HelpText<"Check usage of tagged unions">,
-  Documentation<NotDocumented>;
-
 def UndefResultChecker : Checker<"UndefinedBinaryOperatorResult">,
   HelpText<"Check for undefined results of binary operators">,
   Documentation<HasDocumentation>;
@@ -434,6 +426,10 @@ def UnconditionalVAArgChecker
     : Checker<"UnconditionalVAArg">,
       HelpText<"Check variadic functions unconditionally using va_arg">,
       Documentation<HasDocumentation>;
+
+def TaggedUnionChecker : Checker<"TaggedUnionChecker">,
+  HelpText<"Check consistent usage of C-style tagged unions">,
+  Documentation<HasDocumentation>;
 
 } // end "optin.core"
 

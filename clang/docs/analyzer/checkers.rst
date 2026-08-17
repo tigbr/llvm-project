@@ -946,6 +946,28 @@ like ``void foo(size_t num_varargs, ...)``. Those approaches are still not
 foolproof (e.g. ``foo(3, "a")`` will be undefined behavior), but they reduce
 the chances of an accidental mistake.
 
+.. _optin-core-TaggedUnion:
+
+optin.core.TaggedUnion (C, C++)
+"""""""""""""""""""""""""""""""
+Tagged unions are a user defined record types that combine an enumeration type
+with a union such that the value of the enumeration field indicates which union
+field contains valid data. This mapping is checked for inconsistencies,
+specifically, when an enumeration value is used to access more than one union
+field. A mistake like this can happen, for example, as a result of a
+copy-paste error when implementing a new case in a switch statement.
+
+The checker observes tagged union.
+Warnings are produced the whole translation unit has been analyzed. 
+
+**Reverse initialization heuristic**
+
+A tagged union can be reinitialized in enum, union order or union, enum order.
+
+.. code-block:: cpp
+ 
+ int asdf;
+
 .. _optin-cplusplus-UninitializedObject:
 
 optin.cplusplus.UninitializedObject (C++)
