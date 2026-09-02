@@ -1,5 +1,7 @@
 // RUN: %clang_analyze_cc1 -analyzer-checker=optin.core.TaggedUnionChecker -fblocks -verify -analyzer-config eagerly-assume=false %s
 
+// expected-no-diagnostics
+
 struct tagged_union {
 	enum {
 		kind1,

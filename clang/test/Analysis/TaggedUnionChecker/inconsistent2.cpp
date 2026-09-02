@@ -6,18 +6,22 @@ struct tagged_union { // expected-warning{{inconsistently used tagged union type
 		kind2,
 	} kind;
 	union {
-		short field1;
-		float field2;
+		struct {
+			short x;
+		} field1;
+		struct {
+			float x;
+		} field2;
 	} data;
 };
 
 void f(struct tagged_union t) {
 	switch (t.kind) {
 		case tagged_union::kind1: {
-			t.data.field1 = 1;
+			t.data.field1.x = 1;
 		} break;
 		case tagged_union::kind2: {
-			t.data.field2 = 2.0f; // expected-note{{'kind2' matched with union field 'field2'}}
+			t.data.field2.x = 2.0f; // expected-note{{'kind2' matched with union field 'field2'}}
 		} break;
 	}
 }
@@ -25,10 +29,10 @@ void f(struct tagged_union t) {
 void g(struct tagged_union t) {
 	switch (t.kind) {
 		case tagged_union::kind1: {
-			t.data.field1 = 1;
+			t.data.field1.x = 1;
 		} break;
 		case tagged_union::kind2: {
-			t.data.field1 = 2.0f; // expected-note{{'kind2' matched with union field 'field1'}}
+			t.data.field1.x = 2.0f; // expected-note{{'kind2' matched with union field 'field1'}}
 		} break;
 	}
 }
