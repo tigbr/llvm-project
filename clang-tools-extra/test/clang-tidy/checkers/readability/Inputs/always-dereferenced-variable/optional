@@ -1,0 +1,14 @@
+
+namespace std {
+
+template <typename T>
+class {
+  bool has_value;
+  T value;
+
+public:
+
+  T operator;
+};
+
+};

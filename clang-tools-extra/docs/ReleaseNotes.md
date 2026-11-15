@@ -152,6 +152,11 @@ infrastructure are described first, followed by tool-specific sections.
   Finds uses of `#pragma comment` and, for `lib` or `linker` comments, suggests
   using the build system for improved portability.
 
+- New {doc}`readability-always-dereferenced-variable
+  <clang-tidy/checks/readability/always-dereferenced-variable>` check.
+
+  Detects always dereferenced pointer or `std::optional` variables.
+
 - New {doc}`readability-redundant-zero-initializer
   <clang-tidy/checks/readability/redundant-zero-initializer>` check.
 
